@@ -9,9 +9,6 @@ IWbemServices* pSvc = NULL;
 
 std::set<std::wstring> monitoredDeviceList;
 
-BOOL strComp(std::wstring a, std::wstring b){ 
-    return a.compare(b);
-};
 BOOL InitializeWMI()
 {
     HRESULT hres;
@@ -118,7 +115,6 @@ BOOL IsDeviceConnected(){
     // For example, get the name of the operating system
     IEnumWbemClassObject* pEnumerator = NULL;
 
-
     if (monitoredDeviceList.size() == 0) {
         return false;
     }
@@ -132,12 +128,14 @@ BOOL IsDeviceConnected(){
     // Remove last ' or' and end and close parenthesis
     query.resize(query.length() - 3);
     query.append(L")");
+    BSTR queryStr = SysAllocStringLen(query.data(), query.size());
     hres = pSvc->ExecQuery(
         bstr_t("WQL"),
-        SysAllocStringLen(query.data(), query.size()),
+        queryStr,
         WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
         NULL,
         &pEnumerator);
+    SysFreeString(queryStr);
 
     if (FAILED(hres))
     {
@@ -232,5 +230,7 @@ VOID CloseMonitor() {
     HRESULT hres;
     if (pSvc != NULL) pSvc->Release();
     if (pLoc != NULL) pLoc->Release();
+    pLoc = NULL;
+    pSvc = NULL;
     CoUninitialize();
 }

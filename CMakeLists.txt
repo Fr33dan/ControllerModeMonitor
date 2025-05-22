@@ -14,10 +14,17 @@ project ("ControllerModeMonitor")
 ADD_DEFINITIONS(-DUNICODE)
 ADD_DEFINITIONS(-D_UNICODE)
 
+file(GLOB monitorSRC
+     "*.h"
+     "*.cpp"
+)
+
+find_package(CURL REQUIRED)
 
 # Add source to this project's executable.
-add_executable (ControllerModeMonitor WIN32 "ControllerModeMonitor.cpp" "ControllerModeMonitor.h" "ControllerMonitor.cpp" "ControllerMonitor.h")
+add_executable (ControllerModeMonitor WIN32 ${monitorSRC})
 target_sources (ControllerModeMonitor PRIVATE ControllerModeMonitor.rc)
+target_link_libraries(ControllerModeMonitor PRIVATE CURL::libcurl)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET ControllerModeMonitor PROPERTY CXX_STANDARD 20)

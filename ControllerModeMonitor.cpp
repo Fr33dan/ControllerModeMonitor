@@ -12,8 +12,7 @@
 #include <vector>
 #include <algorithm>
 #include <fstream>
-#include <filesystem>
-#include <iostream>
+#include <set>
 
 #define MAX_LOADSTRING 100
 #define TRUE_DISCONNECT_COUNT 5
@@ -133,7 +132,7 @@ BOOL InitInstance(HINSTANCE hInstance)
     {
         return FALSE;
     }
-    SetTimer(hWnd, IDT_UPDATETIMER, 500, nullptr);
+    SetTimer(hWnd, IDT_UPDATETIMER, 10, nullptr);
     InitNotifyTray(hWnd);
     InitConfig();
 
@@ -374,6 +373,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         break;
     case WM_TIMER:
         UpdateStatus();
+        break;
     case WMAPP_NOTIFYCALLBACK:
         switch (LOWORD(lParam))
         {

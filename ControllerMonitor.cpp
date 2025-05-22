@@ -3,6 +3,7 @@
 #include <comdef.h>
 #include <Wbemidl.h>
 #include <cassert>
+#pragma comment(lib, "wbemuuid.lib")
 
 IWbemLocator* pLoc = NULL;
 IWbemServices* pSvc = NULL;

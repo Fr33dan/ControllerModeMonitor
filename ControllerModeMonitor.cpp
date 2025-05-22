@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <fstream>
 #include <set>
+#include "RokuAPI.h"
 
 #define MAX_LOADSTRING 100
 #define TRUE_DISCONNECT_COUNT 5
@@ -312,6 +313,7 @@ VOID UpdateStatus() {
     }
     else if (!controllerModeActive && isConnected) {
         controllerModeActive = true;
+        ActivateHDMI2();
         LoadString(hInst, IDS_CMD_BIG_PICTURE_ACTIVATE, commandText, MAX_LOADSTRING);
 
     }

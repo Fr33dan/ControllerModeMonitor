@@ -1,0 +1,2 @@
+
+void ActivateHDMI2();

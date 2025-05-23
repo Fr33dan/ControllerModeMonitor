@@ -1,7 +1,7 @@
 ﻿# CMakeList.txt : CMake project for ControllerModeMonitor, include source and define
 # project specific logic here.
 #
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.10)
 
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
@@ -20,10 +20,15 @@ file(GLOB monitorSRC
 )
 
 find_package(CURL REQUIRED)
+find_package(boost_asio REQUIRED CONFIG)
 
 # Add source to this project's executable.
+
 add_executable (ControllerModeMonitor WIN32 ${monitorSRC})
+
 target_sources (ControllerModeMonitor PRIVATE ControllerModeMonitor.rc)
+
+target_link_libraries(ControllerModeMonitor PRIVATE Boost::asio)
 target_link_libraries(ControllerModeMonitor PRIVATE CURL::libcurl)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)

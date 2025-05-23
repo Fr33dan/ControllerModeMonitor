@@ -145,6 +145,8 @@ BOOL InitInstance(HINSTANCE hInstance)
         exit(-1);
     }
 
+    //SearchRokuDevices();
+
     return TRUE;
 }
 
@@ -349,7 +351,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
                 break;
             case IDM_ADDDEVICE:
-                AddNewDevice(hWnd);
+                SearchRokuDevices();
+                //AddNewDevice(hWnd);
                 break;
             case IDM_EXIT:
                 CloseMonitor();

@@ -27,10 +27,15 @@ RokuTVController::RokuTVController(std::string ipA) {
 }
 
 void RokuTVController::SetInput(int HDMINumber) {
+    this->SendCommand("keypress/InputHDMI" + std::to_string(HDMINumber));
+}
+
+void RokuTVController::SendCommand(std::string command) {
     CURL* curl = curl_easy_init();
+    std::string url = "http://" + this->ipAddress + ":8060/" + command;
     if (curl) {
         CURLcode res;
-        curl_easy_setopt(curl, CURLOPT_URL, "http://192.168.11.122:8060/keypress/InputHDMI2");
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl, CURLOPT_POST, 1L);  // Perform a POST request
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "");
         res = curl_easy_perform(curl);

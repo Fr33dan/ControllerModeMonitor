@@ -11,4 +11,5 @@ public:
 	bool Equals(TVController*);
 private:
 	std::string ipAddress;
+	void SendCommand(std::string);
 };

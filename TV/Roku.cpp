@@ -44,13 +44,16 @@ std::list<TVController*> RokuTVController::SearchDevices() {
     udp::socket socket(io_context);
 
     socket.open(udp::v4());
+    socket.set_option(detail::socket_option::integer<SOL_SOCKET, SO_RCVTIMEO>{200});
     socket.send_to(buffer(SSDP_REQUEST), sender_endpoint);
 
     clock_t startTime = clock();
-
+    double timeElapsed;
     do {
         std::array<char, 512> recv_buf;
         udp::endpoint response_endpoint;
+
+        try {
         size_t len = socket.receive_from(
             boost::asio::buffer(recv_buf), response_endpoint);
 
@@ -64,10 +67,14 @@ std::list<TVController*> RokuTVController::SearchDevices() {
             OutputDebugStringA("Found Roku Device ");
             OutputDebugStringA(matches[1].str().c_str());
             OutputDebugStringA("\r\n");
-            RokuTVController newController(matches[1].str());
-            returnVal.push_front(&newController);
+                returnVal.push_front(new RokuTVController(matches[1].str()));
+            }
         }
-    } while (difftime(clock(), startTime) > 3.0);
+        catch (boost::system::system_error e) {
+
+        }
+        timeElapsed = difftime(clock(), startTime);
+    } while (timeElapsed < 3000.0);
 
     return returnVal;
 

@@ -21,6 +21,7 @@
 #define IDS_CMD_BIG_PICTURE_DEACTIVATE  112
 #define IDS_CONFIG_LIST_LOCATION        113
 #define IDS_CONFIG_PATH                 114
+#define IDS_CONFIG_TV                   115
 #define IDR_MAINFRAME                   128
 #define IDS_ADD_PROMPT1                 130
 #define IDS_ADD_PROMPT2_YES             132

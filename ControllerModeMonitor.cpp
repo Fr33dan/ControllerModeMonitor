@@ -15,6 +15,7 @@
 #include <set>
 #include <thread>
 #include <atomic>
+#include <typeinfo>
 #include "TV/TV.h"
 #include "TV/Roku.h"
 
@@ -48,7 +49,7 @@ ATOM                MyRegisterClass(HINSTANCE);
 BOOL                InitInstance(HINSTANCE);
 VOID                InitNotifyTray(HWND);
 VOID                InitConfig();
-VOID                WriteConfig();
+VOID                WriteDeviceList();
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 VOID                AddNewDevice(HWND);
@@ -212,9 +213,27 @@ VOID InitConfig() {
             monitoredDeviceList.insert(deviceName);
         }
     }
+
+    LoadString(hInst, IDS_CONFIG_TV, rawPath, MAX_LOADSTRING);
+    ExpandEnvironmentStrings(rawPath, path, MAX_LOADSTRING);
+
+    configAttr = GetFileAttributes(path);
+
+    if (configAttr != INVALID_FILE_ATTRIBUTES) {
+        std::wifstream file(path);
+        std::wstring tvInfo;
+        std::getline(file, tvInfo);
+        int midIndex = tvInfo.find(L":");
+        std::wstring tvType = tvInfo.substr(0, midIndex);
+        std::wstring tvSerializeInfo = tvInfo.substr(midIndex + 1, tvInfo.length());
+
+        if (tvType == L"Roku") {
+            currentController = new RokuTVController(std::string(tvSerializeInfo.begin(), tvSerializeInfo.end()));
+        }
+    }
 }
 
-VOID WriteConfig() {
+VOID WriteDeviceList() {
     WCHAR rawPath[MAX_LOADSTRING];
     WCHAR path[MAX_LOADSTRING];
     LoadString(hInst, IDS_CONFIG_LIST_LOCATION, rawPath, MAX_LOADSTRING);
@@ -224,6 +243,22 @@ VOID WriteConfig() {
     for (std::wstring deviceName : monitoredDeviceList) {
         file << deviceName << std::endl;
     }
+    file.close();
+}
+
+VOID WriteSelectTV() {
+    WCHAR rawPath[MAX_LOADSTRING];
+    WCHAR path[MAX_LOADSTRING];
+    LoadString(hInst, IDS_CONFIG_TV, rawPath, MAX_LOADSTRING);
+    ExpandEnvironmentStrings(rawPath, path, MAX_LOADSTRING);
+    std::wstring deviceType;
+
+    if (dynamic_cast<RokuTVController*>(currentController)) {
+        deviceType = L"Roku";
+    }
+
+    std::wofstream file(path);
+    file << deviceType << ":" << currentController->Serialize() << std::endl;
     file.close();
 }
 
@@ -285,7 +320,7 @@ VOID AddNewDevice(HWND hWnd) {
     if (dRes2 == IDYES) 
     {
         monitoredDeviceList.insert(foundDevice);
-        WriteConfig();
+        WriteDeviceList();
     }
 }
 
@@ -305,7 +340,7 @@ VOID RemoveDevice(HWND hWnd, UINT deviceIndex) {
 
     if (dRes == IDYES) {
         monitoredDeviceList.erase(deviceToRemove);
-        WriteConfig();
+        WriteDeviceList();
     }
 }
 
@@ -329,7 +364,10 @@ VOID UpdateStatus() {
     }
     else if (!controllerModeActive && isConnected) {
         controllerModeActive = true;
-        //ActivateHDMI2();
+
+        if (currentController != nullptr) {
+            currentController->SetInput(2);
+        }
         LoadString(hInst, IDS_CMD_BIG_PICTURE_ACTIVATE, commandText, MAX_LOADSTRING);
 
     }
@@ -367,6 +405,7 @@ VOID SearchTVs() {
 
 VOID SetTV(UINT index) {
     currentController = *std::next(tvList.begin(), index);
+    WriteSelectTV();
 }
 
 
@@ -506,7 +545,7 @@ void ShowContextMenu(HWND hWnd, POINT pt)
                 MENUITEMINFOW deviceItem = {};
                 deviceItem.cbSize = sizeof(deviceItem);
                 deviceItem.fMask = MIIM_STRING | MIIM_ID | MIIM_STATE;
-                deviceItem.fState = tv == currentController ? MFS_CHECKED : MFS_UNCHECKED;
+                deviceItem.fState = currentController->Equals(tv) ? MFS_CHECKED : MFS_UNCHECKED;
                 deviceItem.wID = MU_TV_ID | i;
                 deviceItem.dwTypeData = const_cast<LPWSTR>(deviceName.c_str());
                 InsertMenuItem(hTVMenu, newItemPos, true, &deviceItem);

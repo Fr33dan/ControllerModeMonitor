@@ -43,6 +43,19 @@ std::wstring RokuTVController::GetName() {
     return returnVal;
 }
 
+std::wstring RokuTVController::Serialize() {
+    std::wstring returnVal(this->ipAddress.begin(), this->ipAddress.end());
+    return returnVal;
+}
+
+bool RokuTVController::Equals(TVController* other){
+    RokuTVController* o = dynamic_cast<RokuTVController*>(other);
+    if (o) {
+        return (this->ipAddress == o->ipAddress);
+    }
+    return false;
+}
+
 std::list<TVController*> RokuTVController::SearchDevices() {
     std::list<TVController*> returnVal;
     boost::asio::io_context io_context;

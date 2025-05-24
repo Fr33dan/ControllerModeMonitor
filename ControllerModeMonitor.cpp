@@ -13,7 +13,9 @@
 #include <algorithm>
 #include <fstream>
 #include <set>
-#include "RokuAPI.h"
+#include <thread>
+#include "TV/TV.h"
+#include "TV/Roku.h"
 
 #define MAX_LOADSTRING 100
 #define TRUE_DISCONNECT_COUNT 5
@@ -315,7 +317,7 @@ VOID UpdateStatus() {
     }
     else if (!controllerModeActive && isConnected) {
         controllerModeActive = true;
-        ActivateHDMI2();
+        //ActivateHDMI2();
         LoadString(hInst, IDS_CMD_BIG_PICTURE_ACTIVATE, commandText, MAX_LOADSTRING);
 
     }
@@ -325,6 +327,10 @@ VOID UpdateStatus() {
     }
 }
 
+VOID SearchTVs() {
+    std::thread tvSearchThread(RokuTVController::SearchDevices);
+    tvSearchThread.join();
+}
 
 
 //
@@ -351,8 +357,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
                 break;
             case IDM_ADDDEVICE:
-                SearchRokuDevices();
-                //AddNewDevice(hWnd);
+                AddNewDevice(hWnd);
+                break;
+            case IDM_TV_SEARCH:
+                SearchTVs();
                 break;
             case IDM_EXIT:
                 CloseMonitor();

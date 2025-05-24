@@ -17,10 +17,14 @@ ADD_DEFINITIONS(-D_UNICODE)
 file(GLOB monitorSRC
      "*.h"
      "*.cpp"
+     "TV/*.h"
+     "TV/*.cpp"
 )
 
 find_package(CURL REQUIRED)
 find_package(boost_asio REQUIRED CONFIG)
+
+message(MONITOR_FILES="${monitorSRC}")
 
 # Add source to this project's executable.
 

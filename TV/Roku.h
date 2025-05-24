@@ -6,6 +6,7 @@ public:
 	RokuTVController(std::string);
 	static std::list<TVController*> SearchDevices();
 	void SetInput(int HDMINumber);
+	std::wstring GetName();
 private:
 	std::string ipAddress;
 };

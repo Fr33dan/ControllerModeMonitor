@@ -14,25 +14,34 @@
 #include <fstream>
 #include <set>
 #include <thread>
+#include <atomic>
 #include "TV/TV.h"
 #include "TV/Roku.h"
 
 #define MAX_LOADSTRING 100
 #define TRUE_DISCONNECT_COUNT 5
-
+#define MU_MASK 0xC000
+#define MU_DEVICE_ID 0xC000
+#define MU_TV_ID 0x4000
 
 UINT const WMAPP_NOTIFYCALLBACK = WM_APP + 1;
-UINT const MU_DEVICE_ID = 0xC000;
+
 UINT const IDT_UPDATETIMER = 1;
 static const GUID TRAY_GUID = { 0xf6860a80, 0x58c5, 0x46eb, {0xb3, 0x6d, 0x49, 0xe9, 0x15, 0x37, 0x8b, 0x58} };
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
+HWND hWnd;
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 WCHAR szController[MAX_LOADSTRING];            // the main window class name
 BOOL controllerModeActive;
 UINT disconnectCount;
+std::thread* tvSearchThread;
+std::atomic<bool> tvSearchRunning(false);
+std::list<TVController*> tvList;
+TVController* currentController;
+
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE);
@@ -45,6 +54,8 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 VOID                AddNewDevice(HWND);
 VOID                ShowContextMenu(HWND, POINT);
 VOID                UpdateStatus();
+VOID                TriggerTVSearch();
+VOID                SearchTVs();
 
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -68,6 +79,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     {
         return FALSE;
     }
+    TriggerTVSearch();
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_CONTROLLERMODEMONITOR));
 
@@ -128,7 +140,7 @@ BOOL InitInstance(HINSTANCE hInstance)
 {
     hInst = hInstance; // Store instance handle in our global variable
 
-    HWND hWnd = CreateWindowW(szWindowClass, szController, WS_OVERLAPPEDWINDOW,
+    hWnd = CreateWindowW(szWindowClass, szController, WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, HWND_MESSAGE, nullptr, hInstance, nullptr);
 
     if (!hWnd)
@@ -327,9 +339,34 @@ VOID UpdateStatus() {
     }
 }
 
+VOID TriggerTVSearch() {
+    if (!tvSearchRunning) {
+        tvSearchRunning = true;
+        if (tvSearchThread != nullptr) {
+            tvSearchThread->join();
+            delete tvSearchThread;
+        }
+        tvSearchThread = new std::thread(SearchTVs);
+    }
+}
+
 VOID SearchTVs() {
-    std::thread tvSearchThread(RokuTVController::SearchDevices);
-    tvSearchThread.join();
+    std::list<TVController*> tvsFound = RokuTVController::SearchDevices();
+
+    for (auto&& child : tvList) {
+        delete child;
+    }
+    tvList.clear();
+    for (TVController* tv : tvsFound) {
+        tvList.push_front(tv);
+    }
+
+
+    tvSearchRunning = false;
+}
+
+VOID SetTV(UINT index) {
+    currentController = *std::next(tvList.begin(), index);
 }
 
 
@@ -350,26 +387,35 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_COMMAND:
         {
             int wmId = LOWORD(wParam);
-            // Parse the menu selections:
-            switch (wmId)
-            {
-            case IDM_ABOUT:
-                DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
-                break;
-            case IDM_ADDDEVICE:
-                AddNewDevice(hWnd);
-                break;
-            case IDM_TV_SEARCH:
-                SearchTVs();
-                break;
-            case IDM_EXIT:
-                CloseMonitor();
-                KillTimer(hWnd, IDT_UPDATETIMER);
-                DestroyWindow(hWnd);
-                break;
-            default:
+            switch (wmId & MU_MASK) {
+            case MU_DEVICE_ID: {
                 UINT deviceNumber = wmId & ~MU_DEVICE_ID;
                 RemoveDevice(hWnd, deviceNumber);
+                break;
+            }
+            case MU_TV_ID: {
+                UINT tvNumber = wmId & ~MU_TV_ID;
+                SetTV(tvNumber);
+                break;
+            }
+            default:
+                switch (wmId)
+                {
+                case IDM_ABOUT:
+                    DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+                    break;
+                case IDM_ADDDEVICE:
+                    AddNewDevice(hWnd);
+                    break;
+                case IDM_TV_SEARCH:
+                    TriggerTVSearch();
+                    break;
+                case IDM_EXIT:
+                    CloseMonitor();
+                    KillTimer(hWnd, IDT_UPDATETIMER);
+                    DestroyWindow(hWnd);
+                    break;
+                }
             }
         }
         break;
@@ -445,10 +491,25 @@ void ShowContextMenu(HWND hWnd, POINT pt)
                 MENUITEMINFOW deviceItem = {};
                 deviceItem.cbSize = sizeof(deviceItem);
                 deviceItem.fMask = MIIM_STRING | MIIM_ID;
-                deviceItem.fState = MFS_DEFAULT;
                 deviceItem.wID = MU_DEVICE_ID | i;
                 deviceItem.dwTypeData = const_cast<LPWSTR>(device.c_str());
                 InsertMenuItem(hDeviceMenu, newItemPos, true, &deviceItem);
+                i++;
+            }
+
+
+            HMENU hTVMenu = GetSubMenu(hMainMenu, 1);
+            i = 0;
+            for (TVController* tv : tvList) {
+                int newItemPos = GetMenuItemCount(hTVMenu);
+                std::wstring deviceName = tv->GetName();
+                MENUITEMINFOW deviceItem = {};
+                deviceItem.cbSize = sizeof(deviceItem);
+                deviceItem.fMask = MIIM_STRING | MIIM_ID | MIIM_STATE;
+                deviceItem.fState = tv == currentController ? MFS_CHECKED : MFS_UNCHECKED;
+                deviceItem.wID = MU_TV_ID | i;
+                deviceItem.dwTypeData = const_cast<LPWSTR>(deviceName.c_str());
+                InsertMenuItem(hTVMenu, newItemPos, true, &deviceItem);
                 i++;
             }
 

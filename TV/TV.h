@@ -5,4 +5,5 @@
 class TVController {
 public:
 	virtual void SetInput(int HDMINumber) = 0;
+	virtual std::wstring GetName() = 0;
 };

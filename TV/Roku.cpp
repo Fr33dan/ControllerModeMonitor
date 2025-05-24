@@ -6,6 +6,7 @@
 #include <iostream>
 #include "Roku.h"
 #include <time.h>
+#include <codecvt>
 #include <regex>
 
 #define SSDP_ADDR "239.255.255.250"
@@ -36,6 +37,12 @@ void RokuTVController::SetInput(int HDMINumber) {
         curl_easy_cleanup(curl);
     }
 }
+
+std::wstring RokuTVController::GetName() {
+    std::wstring returnVal(this->ipAddress.begin(), this->ipAddress.end());
+    return returnVal;
+}
+
 std::list<TVController*> RokuTVController::SearchDevices() {
     std::list<TVController*> returnVal;
     boost::asio::io_context io_context;
@@ -54,19 +61,18 @@ std::list<TVController*> RokuTVController::SearchDevices() {
         udp::endpoint response_endpoint;
 
         try {
-        size_t len = socket.receive_from(
-            boost::asio::buffer(recv_buf), response_endpoint);
+            size_t len = socket.receive_from(
+                boost::asio::buffer(recv_buf), response_endpoint);
+            std::string response(recv_buf.data());
+            response.resize(len);
 
-        std::string response(recv_buf.data());
-        response.resize(len);
+            std::regex rgx("LOCATION: http://([\\d\\.]+)");
+            std::smatch matches;
 
-        std::regex rgx("LOCATION: http://([\\d\\.]+)");
-        std::smatch matches;
-
-        if (std::regex_search(response, matches, rgx)) {
-            OutputDebugStringA("Found Roku Device ");
-            OutputDebugStringA(matches[1].str().c_str());
-            OutputDebugStringA("\r\n");
+            if (std::regex_search(response, matches, rgx)) {
+                OutputDebugStringA("Found Roku Device ");
+                OutputDebugStringA(matches[1].str().c_str());
+                OutputDebugStringA("\r\n");
                 returnVal.push_front(new RokuTVController(matches[1].str()));
             }
         }

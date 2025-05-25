@@ -37,3 +37,4 @@ x64
 out
 vcpkg_installed
 build
+resource.h

@@ -25,9 +25,10 @@
 #define CUSTOM_COMMAND_MASK 0xC000
 #define CC_DEVICE_ID 0xC000
 #define CC_TV_ID 0x4000
-#define MU_CUSTOM_START 0x8800
-#define MU_DEVICE_NOT_FOUND MU_CUSTOM_START + 1
-#define MU_CONFIG_NOT_FOUND MU_CUSTOM_START + 2
+#define CC_INDIVIDUAL_COMMAND_ID 0x8000
+#define CC_CUSTOM_START (CC_INDIVIDUAL_COMMAND_ID & 0x0800)
+#define CC_DEVICE_NOT_FOUND (CC_CUSTOM_START + 1)
+#define CC_CONFIG_NOT_FOUND (CC_CUSTOM_START + 2)
 
 UINT const WMAPP_NOTIFYCALLBACK = WM_APP + 1;
 
@@ -36,29 +37,31 @@ static const GUID TRAY_GUID = { 0xf6860a80, 0x58c5, 0x46eb, {0xb3, 0x6d, 0x49, 0
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
-HWND hWnd;
+HWND hWnd;                                      // Main (hidden) window instance
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
-WCHAR szController[MAX_LOADSTRING];            // the main window class name
-WCHAR szConfigLocation[MAX_LOADSTRING];            // the main window class name
-BOOL controllerModeActive;
-clock_t timeLastSeen;
-std::thread* tvSearchThread;
-std::atomic<bool> tvSearchRunning(false);
-std::vector<TVController*> tvList;
-TVController* currentController;
-int currentHDMI;
+WCHAR szController[MAX_LOADSTRING];             // the main window class name
+WCHAR szConfigLocation[MAX_LOADSTRING];         // the main window class name
+BOOL controllerModeActive;                      // If controller mode is currently activated
+clock_t timeLastSeen;                           // Clock time the controller was last seen
+std::thread* tvSearchThread;                    // Thread to run the TV search on
+std::atomic<bool> tvSearchRunning(false);       // Atomic boolean to monitor if search is running
+std::vector<TVController*> tvList;              // List of TVs found on most recent search.
+TVController* currentController;                // Current TV to attempt to change input on
+                                                // when controller mode is activated.
+int currentHDMI;                                // HDMI port to set the TV to when controller
+                                                // mode is activated.
 
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE);
 BOOL                InitInstance(HINSTANCE);
-VOID                InitNotifyTray(HWND);
+VOID                InitNotifyTray();
 VOID                WriteXmlSettings();
 VOID                ReadXmlSettings();
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
-VOID                AddNewDevice(HWND);
-VOID                ShowContextMenu(HWND, POINT);
+VOID                AddNewDevice();
+VOID                ShowContextMenu(POINT);
 VOID                UpdateStatus();
 VOID                TriggerTVSearch();
 VOID                SearchTVs();
@@ -87,20 +90,26 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     {
         return FALSE;
     }
-    TriggerTVSearch();
 
-    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_CONTROLLERMODEMONITOR));
+    ReadXmlSettings();
+
+    int hRes;
+    hRes = InitializeWMI();
+
+    if (FAILED(hRes))
+    {
+        exit(-1);
+    }
+    TriggerTVSearch();
+    SetTimer(hWnd, IDT_UPDATETIMER, 100, nullptr);
 
     MSG msg;
 
     // Main message loop:
     while (GetMessage(&msg, nullptr, 0, 0))
     {
-        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
     }
 
     return (int) msg.wParam;
@@ -137,12 +146,12 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 //
 //   FUNCTION: InitInstance(HINSTANCE, int)
 //
-//   PURPOSE: Saves instance handle and creates main window
+//   PURPOSE: Saves instance handle and creates UI elements.
 //
 //   COMMENTS:
 //
 //        In this function, we save the instance handle in a global variable and
-//        create and display the main program window.
+//        create a hidden window handle and notification tray entry.
 //
 BOOL InitInstance(HINSTANCE hInstance)
 {
@@ -155,24 +164,22 @@ BOOL InitInstance(HINSTANCE hInstance)
     {
         return FALSE;
     }
-    SetTimer(hWnd, IDT_UPDATETIMER, 10, nullptr);
-    InitNotifyTray(hWnd);
-    ReadXmlSettings();
-
-    int hRes;
-    hRes = InitializeWMI();
-
-    if (FAILED(hRes))
-    {
-        exit(-1);
-    }
-
-    //SearchRokuDevices();
-
+    InitNotifyTray();
+    
     return TRUE;
 }
 
-VOID InitNotifyTray(HWND hWnd) {
+//
+//   FUNCTION: InitNotifyTray(HWND)
+//
+//   PURPOSE: Creates notification tray entry.
+//
+//   COMMENTS:
+//
+//        In this function, we save the instance handle in a global variable and
+//        create and display the main program window.
+//
+VOID InitNotifyTray() {
     NOTIFYICONDATAW nid = {};
     nid.cbSize = sizeof(nid);
     nid.hWnd = hWnd;
@@ -180,9 +187,6 @@ VOID InitNotifyTray(HWND hWnd) {
     nid.uVersion = NOTIFYICON_VERSION_4;
     nid.uCallbackMessage = WMAPP_NOTIFYCALLBACK;
 
-    // Note: This is an example GUID only and should not be used.
-    // Normally, you should use a GUID-generating tool to provide the value to
-    // assign to guidItem.
     nid.guidItem = TRAY_GUID;
 
     // This text will be shown as the icon's tooltip.
@@ -197,6 +201,17 @@ VOID InitNotifyTray(HWND hWnd) {
     Shell_NotifyIcon(NIM_SETVERSION, &nid) ? S_OK : E_FAIL;
 }
 
+//
+//   FUNCTION: ReadXmlSettings()
+//
+//   PURPOSE: Load the xml configuration file containing TV and controllers.
+//
+//   COMMENTS:
+//
+//        In this function, we load the configuration file from the local
+//        app data folder and populates monitored device list, TV, and 
+//        HDMI port information.
+//
 VOID ReadXmlSettings() {
     std::filesystem::path configRoot(szConfigLocation);
     std::filesystem::path xmlFile("Configuration.xml");
@@ -206,7 +221,7 @@ VOID ReadXmlSettings() {
 
     pugi::xml_parse_result status = configDocument.load_file(full_path.c_str());
     if (!status) {
-        SendMessage(hWnd, WM_COMMAND, MU_CONFIG_NOT_FOUND, 0);
+        SendMessage(hWnd, WM_COMMAND, CC_CONFIG_NOT_FOUND, 0);
         return;
     }
 
@@ -227,6 +242,17 @@ VOID ReadXmlSettings() {
     }
 }
 
+//
+//   FUNCTION: ReadXmlSettings()
+//
+//   PURPOSE: Save the xml configuration file containing TV and controllers.
+//
+//   COMMENTS:
+//
+//        In this function, we save the configuration file to the local
+//        app data folder including the monitored device list, TV, and HDMI 
+//        port information.
+//
 VOID WriteXmlSettings() {
     std::filesystem::path configRoot(szConfigLocation);
     std::filesystem::path xmlFile("Configuration.xml");
@@ -238,9 +264,6 @@ VOID WriteXmlSettings() {
     for (std::wstring deviceName : monitoredDeviceList) {
         pugi::xml_node controllerNode = devicesNode.append_child("DeviceName");
         controllerNode.append_child(pugi::node_pcdata).set_value(pugi::as_utf8(deviceName));
-        //controllerNode.child_value()
-        //controllerNode.set_value("TEST");
-        //controllerNode.set_value(pugi::as_utf8(deviceName));
     }
 
     if (currentController != nullptr) {
@@ -259,7 +282,20 @@ VOID WriteXmlSettings() {
     configDocument.save_file(full_path.c_str());
 }
 
-VOID AddNewDevice(HWND hWnd) {
+//
+//   FUNCTION: AddNewDevice()
+//
+//   PURPOSE: Add a new controller device through a series of prompts.
+//
+//   COMMENTS:
+//
+//        In this function, we check the list of attached HID devices,
+//        ask the user to change the state of the controller (off to on
+//        or vice versa), check the list again to deduce the controller
+//        desired and confirm that choice with the user. If add is 
+//        confirmed the list (and all other configurations) is saved.
+//
+VOID AddNewDevice() {
     std::set<std::wstring> setContainingDevice, setWithoutDevice;
     WCHAR promptText[MAX_LOADSTRING];
     WCHAR promptTitle[MAX_LOADSTRING];
@@ -320,7 +356,19 @@ VOID AddNewDevice(HWND hWnd) {
     }
 }
 
-VOID RemoveDevice(HWND hWnd, UINT deviceIndex) {
+//
+//   FUNCTION: RemoveDevice(UINT)
+//
+//   PURPOSE: Confirm then remove a controller from the device list.
+//
+//   COMMENTS:
+//
+//        In this function, use a prompt to confirm the device indicated
+//        by the device index is the one the user intended to remove and
+//        if so remove that device from the monitored list and save the
+//        list (and all other configurations).
+//
+VOID RemoveDevice(UINT deviceIndex) {
     WCHAR promptText[MAX_LOADSTRING];
     WCHAR promptTitle[MAX_LOADSTRING];
     LoadStringW(hInst, IDS_REMOVE_PROMPT, promptText, MAX_LOADSTRING);
@@ -340,6 +388,18 @@ VOID RemoveDevice(HWND hWnd, UINT deviceIndex) {
     }
 }
 
+//
+//   FUNCTION: UpdateStatus()
+//
+//   PURPOSE: Check the state of controller to activate/deactivate controller mode.
+//
+//   COMMENTS:
+//
+//        In this function, check if any of the monitored devices are connected. If
+//        a device is found and controller mode is not activated, it is activated.
+//        If controller mode is active and it has been more than 3 seconds since
+//        a controller was detected, controller mode is deactivated.
+//
 VOID UpdateStatus() {
     BOOL isConnected = IsDeviceConnected();
     WCHAR commandText[MAX_LOADSTRING] = L"";
@@ -371,6 +431,16 @@ VOID UpdateStatus() {
     }
 }
 
+//
+//   FUNCTION: TriggerTVSearch()
+//
+//   PURPOSE: Start a thread to search for TVs available on the network.
+//
+//   COMMENTS:
+//
+//        In this function, if there is not already a thread running then
+//        a new thread is created to discover TV devices on the network.
+//
 VOID TriggerTVSearch() {
     if (!tvSearchRunning) {
         tvSearchRunning = true;
@@ -382,6 +452,21 @@ VOID TriggerTVSearch() {
     }
 }
 
+//
+//   FUNCTION: SearchTVs()
+//
+//   PURPOSE: Run the thread to discover TVs on the network.
+//
+//   COMMENTS:
+//
+//        In this function, we send a broadcast signal and monitor
+//        collect devices that respond and use that to populate the 
+//        list of devices shown in the notification tray icon's context
+//        menu. If there is a TV instance created either loaded from
+//        the configuration file or selected from a previous search
+//        and that TV is not found in the search a message to generate
+//        a warning is sent to the main message loop.
+//
 VOID SearchTVs() {
     std::vector<TVController*> tvsFound = RokuTVController::SearchDevices();
 
@@ -397,17 +482,40 @@ VOID SearchTVs() {
             matchFound |= tv->Equals(currentController);
         }
         if (!matchFound) {
-            SendMessage(hWnd, WM_COMMAND, MU_DEVICE_NOT_FOUND, 0);
+            SendMessage(hWnd, WM_COMMAND, CC_DEVICE_NOT_FOUND, 0);
         }
     }
     tvSearchRunning = false;
 }
 
+//
+//   FUNCTION: SetTV(UINT)
+//
+//   PURPOSE: Change the TV to set when controller mode is activated.
+//
+//   COMMENTS:
+//
+//        In this function, we set the instance of the TV controller 
+//        to use to turn on and set the input for when controller mode
+//        is activated. The selected TV (and all other configurations)
+//        is saved.
+//
 VOID SetTV(UINT index) {
     currentController = tvList[index];
     WriteXmlSettings();
 }
 
+//
+//   FUNCTION: DisplayBalloonMessage(UINT)
+//
+//   PURPOSE: Display a balloon message from the notification tray icon.
+//
+//   COMMENTS:
+//
+//        In this function, we load the string from a given string resource
+//        id and then display that to the user in the form of a notification
+//        "balloon" (display as standard notification in Win11).
+//
 VOID DisplayBalloonMessage(UINT stringID) {
     NOTIFYICONDATA updateData;
     //memset(&updateData, 0, sizeof(NOTIFYICONDATA));
@@ -429,7 +537,7 @@ VOID DisplayBalloonMessage(UINT stringID) {
 //
 //  FUNCTION: WndProc(HWND, UINT, WPARAM, LPARAM)
 //
-//  PURPOSE: Processes messages for the main window.
+//  PURPOSE: Processes messages for the main (hidden) window.
 //
 //  WM_COMMAND  - process the application menu
 //  WM_PAINT    - Paint the main window
@@ -446,7 +554,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             switch (wmId & CUSTOM_COMMAND_MASK) {
             case CC_DEVICE_ID: {
                 UINT deviceNumber = wmId & ~CC_DEVICE_ID;
-                RemoveDevice(hWnd, deviceNumber);
+                RemoveDevice(deviceNumber);
                 break;
             }
             case CC_TV_ID: {
@@ -458,17 +566,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             default:
                 switch (wmId)
                 {
-                case MU_DEVICE_NOT_FOUND:
+                case CC_DEVICE_NOT_FOUND:
                     DisplayBalloonMessage(IDS_TV_NOT_FOUND);
                     break;
-                case MU_CONFIG_NOT_FOUND:
+                case CC_CONFIG_NOT_FOUND:
                     DisplayBalloonMessage(IDS_CONFIG_NOT_FOUND);
                     break;
                 case IDM_ABOUT:
                     DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
                     break;
                 case IDM_ADDDEVICE:
-                    AddNewDevice(hWnd);
+                    AddNewDevice();
                     break;
                 case IDM_TV_SEARCH:
                     TriggerTVSearch();
@@ -509,7 +617,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             case WM_CONTEXTMENU:
             {
                 POINT const pt = { LOWORD(wParam), HIWORD(wParam) };
-                ShowContextMenu(hWnd, pt);
+                ShowContextMenu(pt);
             }
             break;
         }
@@ -520,7 +628,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     return 0;
 }
 
-void ShowContextMenu(HWND hWnd, POINT pt)
+//
+//   FUNCTION: ShowContextMenu(UINT)
+//
+//   PURPOSE: Display the notification tray icon context menu.
+//
+//   COMMENTS:
+//
+//        In this function, we load the the context menu from 
+//        the embedded resources, populate the monitored devices
+//        and found TVs before displaying to user.
+//
+void ShowContextMenu(POINT pt)
 {
     HMENU hMenu = LoadMenu(hInst, MAKEINTRESOURCE(IDC_CONTROLLERMODEMONITOR));
     if (hMenu)
@@ -599,7 +718,12 @@ void ShowContextMenu(HWND hWnd, POINT pt)
     }
 }
 
-// Message handler for about box.
+
+//
+//   FUNCTION: ShowContextMenu(UINT)
+//
+//   PURPOSE: Message handler for about box.
+//
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER(lParam);

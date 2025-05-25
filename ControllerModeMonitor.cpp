@@ -35,11 +35,10 @@ static const GUID TRAY_GUID = { 0xf6860a80, 0x58c5, 0x46eb, {0xb3, 0x6d, 0x49, 0
 // Global Variables:
 HINSTANCE hInst;                                // current instance
 HWND hWnd;
-WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 WCHAR szController[MAX_LOADSTRING];            // the main window class name
 BOOL controllerModeActive;
-clock_t disconnectTime;
+clock_t timeLastSeen;
 std::thread* tvSearchThread;
 std::atomic<bool> tvSearchRunning(false);
 std::vector<TVController*> tvList;
@@ -70,10 +69,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
     controllerModeActive = false;
-    disconnectTime = 0;
+    timeLastSeen = -3000;
 
     // Initialize global strings
-    LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadStringW(hInstance, IDC_CONTROLLERMODEMONITOR, szWindowClass, MAX_LOADSTRING);
     LoadStringW(hInstance, IDS_CONTROLLER, szController, MAX_LOADSTRING);
     MyRegisterClass(hInstance);
@@ -354,13 +352,11 @@ VOID UpdateStatus() {
     WCHAR commandText[MAX_LOADSTRING] = L"";
 
     if (!isConnected) {
-        if (disconnectTime == 0) {
-            disconnectTime = clock();
-        }
-        else {
-            // Wait for 3 seconds of controller not found before changing status.
-            isConnected = difftime(clock(), disconnectTime) < 3000.0;
-        }
+        time_t currentTime = clock();
+        isConnected = (currentTime - timeLastSeen) < 3000;
+    }
+    else {
+        timeLastSeen = clock();
     }
     
     if (controllerModeActive && !isConnected) {

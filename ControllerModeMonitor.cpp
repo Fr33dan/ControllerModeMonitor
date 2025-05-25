@@ -39,7 +39,7 @@ WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 WCHAR szController[MAX_LOADSTRING];            // the main window class name
 BOOL controllerModeActive;
-UINT disconnectCount;
+clock_t disconnectTime;
 std::thread* tvSearchThread;
 std::atomic<bool> tvSearchRunning(false);
 std::vector<TVController*> tvList;
@@ -70,7 +70,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
     controllerModeActive = false;
-    disconnectCount = TRUE_DISCONNECT_COUNT;
+    disconnectTime = 0;
 
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -354,14 +354,14 @@ VOID UpdateStatus() {
     WCHAR commandText[MAX_LOADSTRING] = L"";
 
     if (!isConnected) {
-        // Require multiple failed detections for a true disconnect
-        // to avoid triggering on momentary loss.
-        isConnected = ++disconnectCount < TRUE_DISCONNECT_COUNT;
+        if (disconnectTime == 0) {
+            disconnectTime = clock();
+        }
+        else {
+            // Wait for 3 seconds of controller not found before changing status.
+            isConnected = difftime(clock(), disconnectTime) < 3000.0;
+        }
     }
-    else {
-        disconnectCount = 0;
-    }
-
     
     if (controllerModeActive && !isConnected) {
         controllerModeActive = false;
@@ -371,7 +371,7 @@ VOID UpdateStatus() {
         controllerModeActive = true;
 
         if (currentController != nullptr) {
-            currentController->SetInput(2);
+            currentController->SetInput(currentHDMI);
         }
         LoadString(hInst, IDS_CMD_BIG_PICTURE_ACTIVATE, commandText, MAX_LOADSTRING);
 

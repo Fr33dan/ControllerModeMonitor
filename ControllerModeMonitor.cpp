@@ -24,6 +24,8 @@
 #define MU_MASK 0xC000
 #define MU_DEVICE_ID 0xC000
 #define MU_TV_ID 0x4000
+#define MU_CUSTOM_START 0x8800
+#define MU_DEVICENOT_FOUND MU_CUSTOM_START + 1
 
 UINT const WMAPP_NOTIFYCALLBACK = WM_APP + 1;
 
@@ -224,7 +226,7 @@ VOID InitConfig() {
         std::wifstream file(path);
         std::wstring tvInfo;
         std::getline(file, tvInfo);
-        int midIndex = tvInfo.find(L":");
+        size_t midIndex = tvInfo.find(L":");
         std::wstring tvType = tvInfo.substr(0, midIndex);
         std::wstring tvSerializeInfo = tvInfo.substr(midIndex + 1, tvInfo.length());
 
@@ -268,7 +270,6 @@ VOID WriteSelectTV() {
 
 VOID AddNewDevice(HWND hWnd) {
     std::set<std::wstring> setContainingDevice, setWithoutDevice;
-    LPCWSTR secondPrompt;
     WCHAR promptText[MAX_LOADSTRING];
     WCHAR promptTitle[MAX_LOADSTRING];
 
@@ -396,15 +397,44 @@ VOID SearchTVs() {
     std::vector<TVController*> tvsFound = RokuTVController::SearchDevices();
 
     for (auto&& child : tvList) {
-        delete child;
+        if (child != currentController) {
+            delete child;
+        }
     }
     tvList = tvsFound;
+    if (currentController != nullptr) {
+        bool matchFound = false;
+        for (TVController* tv : tvList) {
+            matchFound |= tv->Equals(currentController);
+        }
+        if (!matchFound) {
+            SendMessage(hWnd, WM_COMMAND, MU_DEVICENOT_FOUND, 0);
+        }
+    }
     tvSearchRunning = false;
 }
 
 VOID SetTV(UINT index) {
     currentController = tvList[index];
     WriteSelectTV();
+}
+
+VOID DisplayTVNotFoundMessage() {
+
+    NOTIFYICONDATA updateData = { sizeof(updateData) };
+    //memset(&updateData, 0, sizeof(NOTIFYICONDATA));
+    ZeroMemory(&updateData, sizeof(updateData));
+    updateData.cbSize = sizeof(updateData);
+    updateData.hWnd = hWnd;
+    updateData.uFlags = NIF_INFO | NIF_GUID;
+    updateData.guidItem = TRAY_GUID;
+    updateData.uTimeout = 5000;
+    LoadString(hInst, IDS_TV_NOT_FOUND, updateData.szInfo, sizeof(updateData.szInfo));
+    LoadString(hInst, IDS_BALLOON_TITLE, updateData.szInfoTitle, sizeof(updateData.szInfoTitle));
+
+    //GetLastError();
+    int res = Shell_NotifyIcon(NIM_MODIFY, &updateData);
+    OutputDebugString(L"Notification Sent.\r\n");
 }
 
 
@@ -440,6 +470,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             default:
                 switch (wmId)
                 {
+                case MU_DEVICENOT_FOUND:
+                    DisplayTVNotFoundMessage();
+                    break;
                 case IDM_ABOUT:
                     DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
                     break;

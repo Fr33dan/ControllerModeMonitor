@@ -1,5 +1,6 @@
 #pragma once
 #include "TV.h"
+#include "pugixml.hpp"
 
 class RokuTVController : public TVController {
 public:
@@ -11,5 +12,7 @@ public:
 	bool Equals(TVController*);
 private:
 	std::string ipAddress;
+	pugi::xml_document* status;
 	void SendCommand(std::string);
+	void UpdateStatus();
 };

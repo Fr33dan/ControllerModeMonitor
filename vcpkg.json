@@ -1,6 +1,7 @@
 {
   "dependencies": [
     "curl",
-    "boost-asio"
+    "boost-asio",
+    "pugixml"
   ]
 }

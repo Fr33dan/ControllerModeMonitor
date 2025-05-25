@@ -23,6 +23,7 @@ file(GLOB monitorSRC
 
 find_package(CURL REQUIRED)
 find_package(boost_asio REQUIRED CONFIG)
+find_package(pugixml CONFIG REQUIRED)
 
 message(MONITOR_FILES="${monitorSRC}")
 
@@ -34,6 +35,7 @@ target_sources (ControllerModeMonitor PRIVATE ControllerModeMonitor.rc)
 
 target_link_libraries(ControllerModeMonitor PRIVATE Boost::asio)
 target_link_libraries(ControllerModeMonitor PRIVATE CURL::libcurl)
+target_link_libraries(ControllerModeMonitor PRIVATE pugixml::shared pugixml::pugixml)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET ControllerModeMonitor PROPERTY CXX_STANDARD 20)

@@ -6,6 +6,7 @@
 #include <iostream>
 #include "Roku.h"
 #include <time.h>
+#include "pugixml.hpp"
 #include <codecvt>
 #include <regex>
 
@@ -24,10 +25,41 @@ using ip::udp;
 
 RokuTVController::RokuTVController(std::string ipA) {
     ipAddress = ipA;
+    this->status = new pugi::xml_document();
+    this->UpdateStatus();
+}
+
+size_t WriteCallback(char* contents, size_t size, size_t nmemb, void* userp)
+{
+    ((std::string*)userp)->append((char*)contents, size * nmemb);
+    return size * nmemb;
 }
 
 void RokuTVController::SetInput(int HDMINumber) {
+    this->UpdateStatus();
+    pugi::xml_node rootNode = this->status->child("device-info");
+    pugi::xml_node powerStatusNode = rootNode.child("power-mode");
+
+    if (powerStatusNode.child_value() == "Ready") {
+        this->SendCommand("keypress/PowerOn");
+    }
+
     this->SendCommand("keypress/InputHDMI" + std::to_string(HDMINumber));
+}
+
+void RokuTVController::UpdateStatus() {
+    CURL* curl = curl_easy_init();
+    std::string url = "http://" + this->ipAddress + ":8060/query/device-info";
+    if (curl) {
+        CURLcode res;
+        std::string readBuffer;
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        res = curl_easy_perform(curl);
+        curl_easy_cleanup(curl);
+        this->status->load_string(readBuffer.c_str());
+    }
 }
 
 void RokuTVController::SendCommand(std::string command) {
@@ -40,12 +72,17 @@ void RokuTVController::SendCommand(std::string command) {
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "");
         res = curl_easy_perform(curl);
         curl_easy_cleanup(curl);
+
     }
 }
 
 std::wstring RokuTVController::GetName() {
-    std::wstring returnVal(this->ipAddress.begin(), this->ipAddress.end());
-    return returnVal;
+    pugi::xml_node rootNode = this->status->child("device-info");
+    pugi::xml_node devNameNode = rootNode.child("user-device-name");
+    std::wstring deviceName = pugi::as_wide(devNameNode.child_value());
+    pugi::xml_node devLocNode = rootNode.child("user-device-location");
+    std::wstring deviceLoc = pugi::as_wide(devLocNode.child_value());
+    return deviceName + L" - " + deviceLoc;
 }
 
 std::wstring RokuTVController::Serialize() {

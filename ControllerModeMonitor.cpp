@@ -12,6 +12,7 @@
 #include <vector>
 #include <algorithm>
 #include <fstream>
+#include <filesystem>
 #include <set>
 #include <thread>
 #include <atomic>
@@ -25,7 +26,8 @@
 #define MU_DEVICE_ID 0xC000
 #define MU_TV_ID 0x4000
 #define MU_CUSTOM_START 0x8800
-#define MU_DEVICENOT_FOUND MU_CUSTOM_START + 1
+#define MU_DEVICE_NOT_FOUND MU_CUSTOM_START + 1
+#define MU_CONFIG_NOT_FOUND MU_CUSTOM_START + 2
 
 UINT const WMAPP_NOTIFYCALLBACK = WM_APP + 1;
 
@@ -37,6 +39,7 @@ HINSTANCE hInst;                                // current instance
 HWND hWnd;
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 WCHAR szController[MAX_LOADSTRING];            // the main window class name
+WCHAR szConfigLocation[MAX_LOADSTRING];            // the main window class name
 BOOL controllerModeActive;
 clock_t timeLastSeen;
 std::thread* tvSearchThread;
@@ -50,8 +53,8 @@ int currentHDMI;
 ATOM                MyRegisterClass(HINSTANCE);
 BOOL                InitInstance(HINSTANCE);
 VOID                InitNotifyTray(HWND);
-VOID                InitConfig();
-VOID                WriteDeviceList();
+VOID                WriteXmlSettings();
+VOID                ReadXmlSettings();
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 VOID                AddNewDevice(HWND);
@@ -66,6 +69,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_ LPWSTR    lpCmdLine,
                      _In_ int       nCmdShow)
 {
+    WCHAR rawPath[MAX_LOADSTRING];
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
     controllerModeActive = false;
@@ -74,6 +78,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     // Initialize global strings
     LoadStringW(hInstance, IDC_CONTROLLERMODEMONITOR, szWindowClass, MAX_LOADSTRING);
     LoadStringW(hInstance, IDS_CONTROLLER, szController, MAX_LOADSTRING);
+    LoadStringW(hInstance, IDS_CONFIG_PATH, rawPath, MAX_LOADSTRING);
+    ExpandEnvironmentStrings(rawPath, szConfigLocation, MAX_LOADSTRING);
     MyRegisterClass(hInstance);
 
     // Perform application initialization:
@@ -151,7 +157,7 @@ BOOL InitInstance(HINSTANCE hInstance)
     }
     SetTimer(hWnd, IDT_UPDATETIMER, 10, nullptr);
     InitNotifyTray(hWnd);
-    InitConfig();
+    ReadXmlSettings();
 
     int hRes;
     hRes = InitializeWMI();
@@ -191,79 +197,66 @@ VOID InitNotifyTray(HWND hWnd) {
     Shell_NotifyIcon(NIM_SETVERSION, &nid) ? S_OK : E_FAIL;
 }
 
-VOID InitConfig() {
-    WCHAR rawPath[MAX_LOADSTRING];
-    WCHAR path[MAX_LOADSTRING];
-    LoadString(hInst, IDS_CONFIG_PATH, rawPath, MAX_LOADSTRING);
-    ExpandEnvironmentStrings(rawPath, path, MAX_LOADSTRING);
+VOID ReadXmlSettings() {
+    std::filesystem::path configRoot(szConfigLocation);
+    std::filesystem::path xmlFile("Configuration.xml");
+    std::filesystem::path full_path = configRoot / xmlFile;
 
-    if (!CreateDirectory(path, NULL) &&
-        ERROR_ALREADY_EXISTS != GetLastError()) {
-        exit(-1);
+    pugi::xml_document configDocument;
+
+    pugi::xml_parse_result status = configDocument.load_file(full_path.c_str());
+    if (!status) {
+        SendMessage(hWnd, WM_COMMAND, MU_CONFIG_NOT_FOUND, 0);
+        return;
     }
 
-    LoadString(hInst, IDS_CONFIG_LIST_LOCATION, rawPath, MAX_LOADSTRING);
-    ExpandEnvironmentStrings(rawPath, path, MAX_LOADSTRING);
-
-    INT configAttr = GetFileAttributes(path);
-
-    if (configAttr != INVALID_FILE_ATTRIBUTES) {
-        std::wifstream file(path);
-        std::wstring deviceName;
-        while (std::getline(file, deviceName)) {
-            monitoredDeviceList.insert(deviceName);
-        }
+    pugi::xml_node devicesNode = configDocument.child("MonitoredControllers");
+    for (pugi::xml_node controllerNode : devicesNode.children()) {
+        monitoredDeviceList.insert(pugi::as_wide(controllerNode.child_value()));
     }
 
-    LoadString(hInst, IDS_CONFIG_TV, rawPath, MAX_LOADSTRING);
-    ExpandEnvironmentStrings(rawPath, path, MAX_LOADSTRING);
+    pugi::xml_node tvNode = configDocument.child("TVInfo");
+    if (tvNode) {
+        std::string tvType = tvNode.child("TVType").child_value();
+        std::string initInfo = tvNode.child("TVInitializeInfo").child_value();
 
-    configAttr = GetFileAttributes(path);
-
-    if (configAttr != INVALID_FILE_ATTRIBUTES) {
-        std::wifstream file(path);
-        std::wstring tvInfo;
-        std::getline(file, tvInfo);
-        size_t midIndex = tvInfo.find(L":");
-        std::wstring tvType = tvInfo.substr(0, midIndex);
-        std::wstring tvSerializeInfo = tvInfo.substr(midIndex + 1, tvInfo.length());
-
-        if (tvType == L"Roku") {
-            currentController = new RokuTVController(std::string(tvSerializeInfo.begin(), tvSerializeInfo.end()));
+        if (tvType == "Roku") {
+            currentController = new RokuTVController(initInfo);
         }
-        std::wstring hdmiString;
-        std::getline(file, hdmiString);
-        currentHDMI = std::stoi(hdmiString);
+        currentHDMI = std::stoi(tvNode.child("HDMIPort").child_value());
     }
 }
 
-VOID WriteDeviceList() {
-    WCHAR rawPath[MAX_LOADSTRING];
-    WCHAR path[MAX_LOADSTRING];
-    LoadString(hInst, IDS_CONFIG_LIST_LOCATION, rawPath, MAX_LOADSTRING);
-    ExpandEnvironmentStrings(rawPath, path, MAX_LOADSTRING);
+VOID WriteXmlSettings() {
+    std::filesystem::path configRoot(szConfigLocation);
+    std::filesystem::path xmlFile("Configuration.xml");
+    std::filesystem::path full_path = configRoot / xmlFile;
 
-    std::wofstream file(path);
+    pugi::xml_document configDocument;
+
+    pugi::xml_node devicesNode = configDocument.append_child("MonitoredControllers");
     for (std::wstring deviceName : monitoredDeviceList) {
-        file << deviceName << std::endl;
-    }
-    file.close();
-}
-
-VOID WriteSelectTV() {
-    WCHAR rawPath[MAX_LOADSTRING];
-    WCHAR path[MAX_LOADSTRING];
-    LoadString(hInst, IDS_CONFIG_TV, rawPath, MAX_LOADSTRING);
-    ExpandEnvironmentStrings(rawPath, path, MAX_LOADSTRING);
-    std::wstring deviceType;
-
-    if (dynamic_cast<RokuTVController*>(currentController)) {
-        deviceType = L"Roku";
+        pugi::xml_node controllerNode = devicesNode.append_child("DeviceName");
+        controllerNode.append_child(pugi::node_pcdata).set_value(pugi::as_utf8(deviceName));
+        //controllerNode.child_value()
+        //controllerNode.set_value("TEST");
+        //controllerNode.set_value(pugi::as_utf8(deviceName));
     }
 
-    std::wofstream file(path);
-    file << deviceType << ":" << currentController->Serialize() << std::endl << std::to_wstring(currentHDMI) << std::endl;
-    file.close();
+    if (currentController != nullptr) {
+        pugi::xml_node tvNode = configDocument.append_child("TVInfo");
+
+        std::string deviceType;
+
+        if (dynamic_cast<RokuTVController*>(currentController)) {
+            deviceType = "Roku";
+        }
+        tvNode.append_child("TVType").append_child(pugi::node_pcdata).set_value(deviceType);
+        tvNode.append_child("TVInitializeInfo").append_child(pugi::node_pcdata).set_value(pugi::as_utf8(currentController->Serialize()));
+        tvNode.append_child("HDMIPort").append_child(pugi::node_pcdata).set_value(std::to_string(currentHDMI));
+    }
+
+    configDocument.save_file(full_path.c_str());
 }
 
 VOID AddNewDevice(HWND hWnd) {
@@ -323,7 +316,7 @@ VOID AddNewDevice(HWND hWnd) {
     if (dRes2 == IDYES) 
     {
         monitoredDeviceList.insert(foundDevice);
-        WriteDeviceList();
+        WriteXmlSettings();
     }
 }
 
@@ -343,7 +336,7 @@ VOID RemoveDevice(HWND hWnd, UINT deviceIndex) {
 
     if (dRes == IDYES) {
         monitoredDeviceList.erase(deviceToRemove);
-        WriteDeviceList();
+        WriteXmlSettings();
     }
 }
 
@@ -404,7 +397,7 @@ VOID SearchTVs() {
             matchFound |= tv->Equals(currentController);
         }
         if (!matchFound) {
-            SendMessage(hWnd, WM_COMMAND, MU_DEVICENOT_FOUND, 0);
+            SendMessage(hWnd, WM_COMMAND, MU_DEVICE_NOT_FOUND, 0);
         }
     }
     tvSearchRunning = false;
@@ -412,20 +405,19 @@ VOID SearchTVs() {
 
 VOID SetTV(UINT index) {
     currentController = tvList[index];
-    WriteSelectTV();
+    WriteXmlSettings();
 }
 
-VOID DisplayTVNotFoundMessage() {
-
-    NOTIFYICONDATA updateData = { sizeof(updateData) };
+VOID DisplayBalloonMessage(UINT stringID) {
+    NOTIFYICONDATA updateData;
     //memset(&updateData, 0, sizeof(NOTIFYICONDATA));
-    ZeroMemory(&updateData, sizeof(updateData));
+    //ZeroMemory(&updateData, sizeof(updateData));
     updateData.cbSize = sizeof(updateData);
     updateData.hWnd = hWnd;
     updateData.uFlags = NIF_INFO | NIF_GUID;
     updateData.guidItem = TRAY_GUID;
     updateData.uTimeout = 5000;
-    LoadString(hInst, IDS_TV_NOT_FOUND, updateData.szInfo, sizeof(updateData.szInfo));
+    LoadString(hInst, stringID, updateData.szInfo, sizeof(updateData.szInfo));
     LoadString(hInst, IDS_BALLOON_TITLE, updateData.szInfoTitle, sizeof(updateData.szInfoTitle));
 
     //GetLastError();
@@ -466,8 +458,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             default:
                 switch (wmId)
                 {
-                case MU_DEVICENOT_FOUND:
-                    DisplayTVNotFoundMessage();
+                case MU_DEVICE_NOT_FOUND:
+                    DisplayBalloonMessage(IDS_TV_NOT_FOUND);
+                    break;
+                case MU_CONFIG_NOT_FOUND:
+                    DisplayBalloonMessage(IDS_CONFIG_NOT_FOUND);
                     break;
                 case IDM_ABOUT:
                     DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
@@ -504,17 +499,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case WMAPP_NOTIFYCALLBACK:
         switch (LOWORD(lParam))
         {
-            case NIN_SELECT:
-                // for NOTIFYICON_VERSION_4 clients, NIN_SELECT is prerable to listening to mouse clicks and key presses
-                // directly.
-                break;
-
             case NIN_BALLOONTIMEOUT:
                 break;
 
             case NIN_BALLOONUSERCLICK:
                 break;
 
+            case NIN_SELECT:
             case WM_CONTEXTMENU:
             {
                 POINT const pt = { LOWORD(wParam), HIWORD(wParam) };

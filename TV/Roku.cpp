@@ -1,3 +1,4 @@
+#include "../framework.h"
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <stdio.h>
@@ -39,9 +40,10 @@ void RokuTVController::SetInput(int HDMINumber) {
     this->UpdateStatus();
     pugi::xml_node rootNode = this->status->child("device-info");
     pugi::xml_node powerStatusNode = rootNode.child("power-mode");
-
-    if (powerStatusNode.child_value() == "Ready") {
+    if (!strncmp(powerStatusNode.child_value(), "Ready", 5)) {
         this->SendCommand("keypress/PowerOn");
+        Sleep(200);
+        OutputDebugString(L"Roku: Powered on TV.");
     }
 
     this->SendCommand("keypress/InputHDMI" + std::to_string(HDMINumber + 1));

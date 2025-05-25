@@ -22,9 +22,9 @@
 
 #define MAX_LOADSTRING 100
 #define TRUE_DISCONNECT_COUNT 5
-#define MU_MASK 0xC000
-#define MU_DEVICE_ID 0xC000
-#define MU_TV_ID 0x4000
+#define CUSTOM_COMMAND_MASK 0xC000
+#define CC_DEVICE_ID 0xC000
+#define CC_TV_ID 0x4000
 #define MU_CUSTOM_START 0x8800
 #define MU_DEVICE_NOT_FOUND MU_CUSTOM_START + 1
 #define MU_CONFIG_NOT_FOUND MU_CUSTOM_START + 2
@@ -443,15 +443,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_COMMAND:
         {
             int wmId = LOWORD(wParam);
-            switch (wmId & MU_MASK) {
-            case MU_DEVICE_ID: {
-                UINT deviceNumber = wmId & ~MU_DEVICE_ID;
+            switch (wmId & CUSTOM_COMMAND_MASK) {
+            case CC_DEVICE_ID: {
+                UINT deviceNumber = wmId & ~CC_DEVICE_ID;
                 RemoveDevice(hWnd, deviceNumber);
                 break;
             }
-            case MU_TV_ID: {
-                UINT tvNumber = (wmId & ~MU_TV_ID) >> 8;
-                currentHDMI = wmId & ~MU_TV_ID & 0xFF;
+            case CC_TV_ID: {
+                UINT tvNumber = (wmId & ~CC_TV_ID) >> 8;
+                currentHDMI = wmId & ~CC_TV_ID & 0xFF;
                 SetTV(tvNumber);
                 break;
             }
@@ -550,7 +550,7 @@ void ShowContextMenu(HWND hWnd, POINT pt)
                 MENUITEMINFOW deviceItem = {};
                 deviceItem.cbSize = sizeof(deviceItem);
                 deviceItem.fMask = MIIM_STRING | MIIM_ID;
-                deviceItem.wID = MU_DEVICE_ID | i;
+                deviceItem.wID = CC_DEVICE_ID | i;
                 deviceItem.dwTypeData = const_cast<LPWSTR>(device.c_str());
                 InsertMenuItem(hDeviceMenu, newItemPos, true, &deviceItem);
                 i++;
@@ -567,7 +567,7 @@ void ShowContextMenu(HWND hWnd, POINT pt)
                 deviceItem.cbSize = sizeof(deviceItem);
                 deviceItem.fMask = MIIM_STRING | MIIM_ID | MIIM_STATE | MIIM_SUBMENU;
                 deviceItem.fState = controllerMatch ? MFS_CHECKED : MFS_UNCHECKED;
-                deviceItem.wID = MU_TV_ID | (i << 8) | currentHDMI;
+                deviceItem.wID = CC_TV_ID | (i << 8) | currentHDMI;
                 deviceItem.dwTypeData = const_cast<LPWSTR>(deviceName.c_str());
                 
                 
@@ -580,7 +580,7 @@ void ShowContextMenu(HWND hWnd, POINT pt)
                     hdmiItem.cbSize = sizeof(deviceItem);
                     hdmiItem.fMask = MIIM_STRING | MIIM_ID | MIIM_STATE;
                     hdmiItem.fState = controllerMatch && currentHDMI == j ? MFS_CHECKED : MFS_UNCHECKED;
-                    hdmiItem.wID = MU_TV_ID | (i << 8) | j;
+                    hdmiItem.wID = CC_TV_ID | (i << 8) | j;
                     std::wstring portName = (L"HDMI" + std::to_wstring(j + 1));
                     hdmiItem.dwTypeData = const_cast<LPWSTR>(portName.c_str());
 

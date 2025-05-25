@@ -1,5 +1,4 @@
 #pragma once
-#include <list>
 #include <string>
 
 class TVController {
@@ -8,4 +7,5 @@ public:
 	virtual std::wstring GetName() = 0;
 	virtual std::wstring Serialize() = 0;
 	virtual bool Equals(TVController*) = 0;
+	virtual int HDMICount() = 0;
 };

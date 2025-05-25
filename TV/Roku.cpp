@@ -44,7 +44,7 @@ void RokuTVController::SetInput(int HDMINumber) {
         this->SendCommand("keypress/PowerOn");
     }
 
-    this->SendCommand("keypress/InputHDMI" + std::to_string(HDMINumber));
+    this->SendCommand("keypress/InputHDMI" + std::to_string(HDMINumber + 1));
 }
 
 void RokuTVController::UpdateStatus() {
@@ -90,6 +90,10 @@ std::wstring RokuTVController::Serialize() {
     return returnVal;
 }
 
+int RokuTVController::HDMICount() {
+    return 4;
+}
+
 bool RokuTVController::Equals(TVController* other){
     RokuTVController* o = dynamic_cast<RokuTVController*>(other);
     if (o) {
@@ -98,8 +102,8 @@ bool RokuTVController::Equals(TVController* other){
     return false;
 }
 
-std::list<TVController*> RokuTVController::SearchDevices() {
-    std::list<TVController*> returnVal;
+std::vector<TVController*> RokuTVController::SearchDevices() {
+    std::vector<TVController*> returnVal;
     boost::asio::io_context io_context;
     udp::resolver resolver(io_context);
     udp::endpoint sender_endpoint = *resolver.resolve(udp::v4(), SSDP_ADDR, SSDP_PORT).begin();;
@@ -128,7 +132,7 @@ std::list<TVController*> RokuTVController::SearchDevices() {
                 OutputDebugStringA("Found Roku Device ");
                 OutputDebugStringA(matches[1].str().c_str());
                 OutputDebugStringA("\r\n");
-                returnVal.push_front(new RokuTVController(matches[1].str()));
+                returnVal.push_back(new RokuTVController(matches[1].str()));
             }
         }
         catch (boost::system::system_error e) {

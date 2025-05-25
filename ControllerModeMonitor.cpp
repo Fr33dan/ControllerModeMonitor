@@ -40,8 +40,9 @@ BOOL controllerModeActive;
 UINT disconnectCount;
 std::thread* tvSearchThread;
 std::atomic<bool> tvSearchRunning(false);
-std::list<TVController*> tvList;
+std::vector<TVController*> tvList;
 TVController* currentController;
+int currentHDMI;
 
 
 // Forward declarations of functions included in this code module:
@@ -230,6 +231,9 @@ VOID InitConfig() {
         if (tvType == L"Roku") {
             currentController = new RokuTVController(std::string(tvSerializeInfo.begin(), tvSerializeInfo.end()));
         }
+        std::wstring hdmiString;
+        std::getline(file, hdmiString);
+        currentHDMI = std::stoi(hdmiString);
     }
 }
 
@@ -258,7 +262,7 @@ VOID WriteSelectTV() {
     }
 
     std::wofstream file(path);
-    file << deviceType << ":" << currentController->Serialize() << std::endl;
+    file << deviceType << ":" << currentController->Serialize() << std::endl << std::to_wstring(currentHDMI) << std::endl;
     file.close();
 }
 
@@ -389,22 +393,17 @@ VOID TriggerTVSearch() {
 }
 
 VOID SearchTVs() {
-    std::list<TVController*> tvsFound = RokuTVController::SearchDevices();
+    std::vector<TVController*> tvsFound = RokuTVController::SearchDevices();
 
     for (auto&& child : tvList) {
         delete child;
     }
-    tvList.clear();
-    for (TVController* tv : tvsFound) {
-        tvList.push_front(tv);
-    }
-
-
+    tvList = tvsFound;
     tvSearchRunning = false;
 }
 
 VOID SetTV(UINT index) {
-    currentController = *std::next(tvList.begin(), index);
+    currentController = tvList[index];
     WriteSelectTV();
 }
 
@@ -433,7 +432,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 break;
             }
             case MU_TV_ID: {
-                UINT tvNumber = wmId & ~MU_TV_ID;
+                UINT tvNumber = (wmId & ~MU_TV_ID) >> 8;
+                currentHDMI = wmId & ~MU_TV_ID & 0xFF;
                 SetTV(tvNumber);
                 break;
             }
@@ -543,12 +543,33 @@ void ShowContextMenu(HWND hWnd, POINT pt)
                 int newItemPos = GetMenuItemCount(hTVMenu);
                 std::wstring deviceName = tv->GetName();
                 MENUITEMINFOW deviceItem = {};
+                bool controllerMatch = currentController != nullptr && currentController->Equals(tv);
                 deviceItem.cbSize = sizeof(deviceItem);
-                deviceItem.fMask = MIIM_STRING | MIIM_ID | MIIM_STATE;
-                deviceItem.fState = currentController->Equals(tv) ? MFS_CHECKED : MFS_UNCHECKED;
-                deviceItem.wID = MU_TV_ID | i;
+                deviceItem.fMask = MIIM_STRING | MIIM_ID | MIIM_STATE | MIIM_SUBMENU;
+                deviceItem.fState = controllerMatch ? MFS_CHECKED : MFS_UNCHECKED;
+                deviceItem.wID = MU_TV_ID | (i << 8) | currentHDMI;
                 deviceItem.dwTypeData = const_cast<LPWSTR>(deviceName.c_str());
+                
+                
+
+                HMENU hHdmiMenu = CreateMenu();
+
+                for (int j = 0; j < tv->HDMICount(); j++) {
+                    MENUITEMINFOW hdmiItem = {};
+                    
+                    hdmiItem.cbSize = sizeof(deviceItem);
+                    hdmiItem.fMask = MIIM_STRING | MIIM_ID | MIIM_STATE;
+                    hdmiItem.fState = controllerMatch && currentHDMI == j ? MFS_CHECKED : MFS_UNCHECKED;
+                    hdmiItem.wID = MU_TV_ID | (i << 8) | j;
+                    std::wstring portName = (L"HDMI" + std::to_wstring(j + 1));
+                    hdmiItem.dwTypeData = const_cast<LPWSTR>(portName.c_str());
+
+                    InsertMenuItem(hHdmiMenu, newItemPos, true, &hdmiItem);
+                }
+                deviceItem.hSubMenu = hHdmiMenu;
+              
                 InsertMenuItem(hTVMenu, newItemPos, true, &deviceItem);
+
                 i++;
             }
 

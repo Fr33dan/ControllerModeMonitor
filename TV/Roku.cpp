@@ -58,6 +58,7 @@ void RokuTVController::UpdateStatus() {
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 200);
         res = curl_easy_perform(curl);
         curl_easy_cleanup(curl);
         this->status->load_string(readBuffer.c_str());
@@ -72,6 +73,7 @@ void RokuTVController::SendCommand(std::string command) {
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl, CURLOPT_POST, 1L);  // Perform a POST request
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "");
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 200);
         res = curl_easy_perform(curl);
         curl_easy_cleanup(curl);
 

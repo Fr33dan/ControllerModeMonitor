@@ -20,7 +20,9 @@ file(GLOB monitorSRC
      "TV/*.h"
      "TV/*.cpp"
 )
-
+execute_process(COMMAND "pwsh" "build_ico.ps1"
+  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+  OUTPUT_VARIABLE ico_out)
 find_package(CURL REQUIRED)
 find_package(boost_asio REQUIRED CONFIG)
 find_package(pugixml CONFIG REQUIRED)

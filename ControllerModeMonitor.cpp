@@ -2,10 +2,7 @@
 //
 
 #include "framework.h"
-#include "ControllerMonitor.h"
-#include "ControllerModeMonitor.h"
-#include "shellapi.h"
-#include "setupapi.h"
+
 #include <iostream>
 #include <comdef.h>
 #include <Wbemidl.h>
@@ -17,14 +14,22 @@
 #include <thread>
 #include <atomic>
 #include <typeinfo>
+
+#include "shellapi.h"
+#include "setupapi.h"
+
+#include "ControllerMonitor.h"
+#include "ControllerModeMonitor.h"
 #include "TV/TV.h"
 #include "TV/Roku.h"
+#include "AudioController.h"
 
 #define MAX_LOADSTRING 100
 #define TRUE_DISCONNECT_COUNT 5
-#define CUSTOM_COMMAND_MASK 0xC000
+#define CUSTOM_COMMAND_MASK 0xF000
 #define CC_DEVICE_ID 0xC000
 #define CC_TV_ID 0x4000
+#define CC_AUDIO_ID 0x2000
 #define CC_INDIVIDUAL_COMMAND_ID 0x8000
 #define CC_CUSTOM_START (CC_INDIVIDUAL_COMMAND_ID & 0x0800)
 #define CC_DEVICE_NOT_FOUND (CC_CUSTOM_START + 1)
@@ -50,6 +55,7 @@ TVController* currentController;                // Current TV to attempt to chan
                                                 // when controller mode is activated.
 int currentHDMI;                                // HDMI port to set the TV to when controller
                                                 // mode is activated.
+AudioDeviceController* audioController;
 
 
 // Forward declarations of functions included in this code module:
@@ -103,6 +109,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     TriggerTVSearch();
     SetTimer(hWnd, IDT_UPDATETIMER, 100, nullptr);
 
+    audioController = new AudioDeviceController();
+    audioController->Refresh();
+
     MSG msg;
 
     // Main message loop:
@@ -111,6 +120,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
+
 
     return (int) msg.wParam;
 }
@@ -401,6 +411,7 @@ VOID RemoveDevice(UINT deviceIndex) {
 //        a controller was detected, controller mode is deactivated.
 //
 VOID UpdateStatus() {
+    audioController->Refresh();
     BOOL isConnected = IsDeviceConnected();
     WCHAR commandText[MAX_LOADSTRING] = L"";
 
@@ -710,6 +721,26 @@ void ShowContextMenu(POINT pt)
                 InsertMenuItem(hTVMenu, newItemPos, true, &deviceItem);
 
                 i++;
+            }
+
+            HMENU hAudioMenu = GetSubMenu(hMainMenu, 2);
+            for (UINT i = 0; i < audioController->Count(); i++) {
+                int newItemPos = GetMenuItemCount(hAudioMenu);
+                std::wstring endpointName = audioController->GetName(i);
+
+                if (audioController->IsDefault(i)) {
+                    endpointName += L" (default)";
+                }
+
+                MENUITEMINFOW audioEndpointItem = {};
+                //bool controllerMatch = currentController != nullptr && currentController->Equals(tv);
+                audioEndpointItem.cbSize = sizeof(MENUITEMINFOW);
+                audioEndpointItem.fMask = MIIM_STRING | MIIM_ID | MIIM_STATE;
+                audioEndpointItem.fState = MFS_UNCHECKED;//controllerMatch ? MFS_CHECKED : MFS_UNCHECKED;
+                audioEndpointItem.wID = CC_AUDIO_ID | i;
+                audioEndpointItem.dwTypeData = const_cast<LPWSTR>(endpointName.c_str());
+
+                InsertMenuItem(hAudioMenu, newItemPos, true, &audioEndpointItem);
             }
 
             TrackPopupMenuEx(hMainMenu, uFlags, pt.x, pt.y, hWnd, NULL);

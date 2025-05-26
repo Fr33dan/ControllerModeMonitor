@@ -790,7 +790,8 @@ void ShowContextMenu(POINT pt)
                 //bool controllerMatch = currentController != nullptr && currentController->Equals(tv);
                 audioEndpointItem.cbSize = sizeof(MENUITEMINFOW);
                 audioEndpointItem.fMask = MIIM_STRING | MIIM_ID | MIIM_STATE;
-                audioEndpointItem.fState = i == controllerModeAudioDevice ? MFS_CHECKED : MFS_UNCHECKED;
+                audioEndpointItem.fState = (i == controllerModeAudioDevice ? MFS_CHECKED : MFS_UNCHECKED) \
+                                                | (controllerModeActive ? MFS_DISABLED : MFS_ENABLED) ;
                 audioEndpointItem.wID = CC_AUDIO_ID | i;
                 audioEndpointItem.dwTypeData = const_cast<LPWSTR>(endpointName.c_str());
 

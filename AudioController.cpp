@@ -59,8 +59,12 @@ VOID AudioDeviceController::SetDefault(UINT index) {
 	CoTaskMemFree(deviceID);
 }
 
-UINT AudioDeviceController::Count() {
+UINT AudioDeviceController::DeviceCount() {
 	return this->deviceCount;
+}
+
+UINT AudioDeviceController::DefaultIndex() {
+	return this->defaultIndex;
 }
 
 std::wstring AudioDeviceController::GetStringProp(UINT index, PROPERTYKEY key) {
@@ -76,7 +80,7 @@ std::wstring AudioDeviceController::GetStringProp(UINT index, PROPERTYKEY key) {
 	std::wstring devName;
 	if (nameProp.vt != VT_EMPTY) {
 		PropVariantToString(nameProp, propertyStrBuffer, MAX_STR_LENGTH);
-		devName = std::wstring(propertyStrBuffer, MAX_STR_LENGTH);
+		devName = std::wstring(propertyStrBuffer, wcslen(propertyStrBuffer));
 	}
 	else {
 		devName = L"";

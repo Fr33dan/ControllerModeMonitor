@@ -34,6 +34,7 @@
 #define CC_CUSTOM_START (CC_INDIVIDUAL_COMMAND_ID & 0x0800)
 #define CC_DEVICE_NOT_FOUND (CC_CUSTOM_START + 1)
 #define CC_CONFIG_NOT_FOUND (CC_CUSTOM_START + 2)
+#define CC_AUDIO_DEVICE_NOT_FOUND (CC_CUSTOM_START + 3)
 
 UINT const WMAPP_NOTIFYCALLBACK = WM_APP + 1;
 
@@ -55,7 +56,9 @@ TVController* currentController;                // Current TV to attempt to chan
                                                 // when controller mode is activated.
 int currentHDMI;                                // HDMI port to set the TV to when controller
                                                 // mode is activated.
-AudioDeviceController* audioController;
+AudioDeviceController* audioController;         // Audio device control object
+int saveAudioDefaultDevice = -1;                // Audio device to restore when controller mode is exited.
+int controllerModeAudioDevice = -1;             // Audio device to activate when controller mode is activated.
 
 
 // Forward declarations of functions included in this code module:
@@ -97,8 +100,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         return FALSE;
     }
 
-    ReadXmlSettings();
-
     int hRes;
     hRes = InitializeWMI();
 
@@ -106,11 +107,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     {
         exit(-1);
     }
-    TriggerTVSearch();
-    SetTimer(hWnd, IDT_UPDATETIMER, 100, nullptr);
 
     audioController = new AudioDeviceController();
     audioController->Refresh();
+
+    ReadXmlSettings();
+    TriggerTVSearch();
+    SetTimer(hWnd, IDT_UPDATETIMER, 100, nullptr);
+
+    
 
     MSG msg;
 
@@ -250,6 +255,23 @@ VOID ReadXmlSettings() {
         }
         currentHDMI = std::stoi(tvNode.child("HDMIPort").child_value());
     }
+
+    pugi::xml_node audioNode = configDocument.child("AudioInfo");
+    if (audioNode) {
+        pugi::xml_node audioDeviceNode = audioNode.child("ControllerModeAudioDevice");
+        std::wstring controllerModeDeviceName = pugi::as_wide(audioDeviceNode.child_value());
+
+        for (int j = 0; j < audioController->DeviceCount(); j++) {
+            std::wstring foundDeviceName = audioController->GetName(j);
+            if (foundDeviceName == controllerModeDeviceName) {
+                controllerModeAudioDevice = j;
+            }
+        }
+        if (controllerModeAudioDevice == -1) {
+
+            SendMessage(hWnd, WM_COMMAND, CC_AUDIO_DEVICE_NOT_FOUND, 0);
+        }
+    }
 }
 
 //
@@ -287,6 +309,13 @@ VOID WriteXmlSettings() {
         tvNode.append_child("TVType").append_child(pugi::node_pcdata).set_value(deviceType);
         tvNode.append_child("TVInitializeInfo").append_child(pugi::node_pcdata).set_value(pugi::as_utf8(currentController->Serialize()));
         tvNode.append_child("HDMIPort").append_child(pugi::node_pcdata).set_value(std::to_string(currentHDMI));
+    }
+
+    if (controllerModeAudioDevice != -1) {
+        pugi::xml_node audioNode = configDocument.append_child("AudioInfo");
+        std::wstring audioDeviceName = audioController->GetName(controllerModeAudioDevice);
+
+        audioNode.append_child("ControllerModeAudioDevice").append_child(pugi::node_pcdata).set_value(pugi::as_utf8(audioDeviceName));
     }
 
     configDocument.save_file(full_path.c_str());
@@ -424,17 +453,29 @@ VOID UpdateStatus() {
     }
     
     if (controllerModeActive && !isConnected) {
+        // Deactivate contoller mode.
         controllerModeActive = false;
         LoadString(hInst, IDS_CMD_BIG_PICTURE_DEACTIVATE, commandText, MAX_LOADSTRING);
+
+        if (saveAudioDefaultDevice != -1) {
+            audioController->SetDefault(saveAudioDefaultDevice);
+            saveAudioDefaultDevice = -1;
+        }
     }
     else if (!controllerModeActive && isConnected) {
+        // Activate Controller Mode.
         controllerModeActive = true;
 
         if (currentController != nullptr) {
             currentController->SetInput(currentHDMI);
         }
-        LoadString(hInst, IDS_CMD_BIG_PICTURE_ACTIVATE, commandText, MAX_LOADSTRING);
 
+        if (controllerModeAudioDevice != -1) {
+            saveAudioDefaultDevice = audioController->DefaultIndex();
+            audioController->SetDefault(controllerModeAudioDevice);
+        }
+
+        LoadString(hInst, IDS_CMD_BIG_PICTURE_ACTIVATE, commandText, MAX_LOADSTRING);
     }
 
     if (commandText[0] != 0) {
@@ -516,6 +557,11 @@ VOID SetTV(UINT index) {
     WriteXmlSettings();
 }
 
+VOID SetAudioDevice(int index) {
+    controllerModeAudioDevice = index;
+    WriteXmlSettings();
+}
+
 //
 //   FUNCTION: DisplayBalloonMessage(UINT)
 //
@@ -574,6 +620,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 SetTV(tvNumber);
                 break;
             }
+            case CC_AUDIO_ID: {
+                int deviceNumber = wmId & ~CC_AUDIO_ID;
+                SetAudioDevice(deviceNumber);
+                break;
+            }
             default:
                 switch (wmId)
                 {
@@ -582,6 +633,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     break;
                 case CC_CONFIG_NOT_FOUND:
                     DisplayBalloonMessage(IDS_CONFIG_NOT_FOUND);
+                    break;
+                case IDM_AUDIO_CLEAR:
+                    SetAudioDevice(-1);
                     break;
                 case IDM_ABOUT:
                     DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
@@ -724,7 +778,7 @@ void ShowContextMenu(POINT pt)
             }
 
             HMENU hAudioMenu = GetSubMenu(hMainMenu, 2);
-            for (UINT i = 0; i < audioController->Count(); i++) {
+            for (UINT i = 0; i < audioController->DeviceCount(); i++) {
                 int newItemPos = GetMenuItemCount(hAudioMenu);
                 std::wstring endpointName = audioController->GetName(i);
 
@@ -736,7 +790,7 @@ void ShowContextMenu(POINT pt)
                 //bool controllerMatch = currentController != nullptr && currentController->Equals(tv);
                 audioEndpointItem.cbSize = sizeof(MENUITEMINFOW);
                 audioEndpointItem.fMask = MIIM_STRING | MIIM_ID | MIIM_STATE;
-                audioEndpointItem.fState = MFS_UNCHECKED;//controllerMatch ? MFS_CHECKED : MFS_UNCHECKED;
+                audioEndpointItem.fState = i == controllerModeAudioDevice ? MFS_CHECKED : MFS_UNCHECKED;
                 audioEndpointItem.wID = CC_AUDIO_ID | i;
                 audioEndpointItem.dwTypeData = const_cast<LPWSTR>(endpointName.c_str());
 

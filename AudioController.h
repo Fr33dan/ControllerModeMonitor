@@ -11,7 +11,8 @@ public:
 	std::wstring GetName(UINT);
 	std::wstring GetID(UINT);
 	BOOL IsDefault(UINT);
-	UINT Count();
+	UINT DefaultIndex();
+	UINT DeviceCount();
 	VOID Refresh();
 	AudioDeviceController();
 	~AudioDeviceController();

@@ -1,0 +1,145 @@
+#include "windows.h"
+#include "propvarutil.h"
+
+#include "AudioController.h"
+
+#pragma comment(lib, "Propsys.lib")
+
+#define MAX_STR_LENGTH 50
+
+const CLSID CLSID_MMDeviceEnumerator = __uuidof(MMDeviceEnumerator);
+const IID IID_IMMDeviceEnumerator = __uuidof(IMMDeviceEnumerator);
+
+AudioDeviceController::AudioDeviceController() {
+	HRESULT hr = S_OK;
+	hr = CoCreateInstance(
+		CLSID_MMDeviceEnumerator, NULL,
+		CLSCTX_ALL, IID_IMMDeviceEnumerator,
+		(void**)&pEnumerator);
+}
+
+AudioDeviceController::~AudioDeviceController() {
+	if (this->pEnumerator != NULL) {
+		this->pEnumerator->Release();
+	}
+	if (this->audioDevices != NULL) {
+		this->audioDevices->Release();
+	}
+}
+
+std::wstring AudioDeviceController::GetDefaultID() {
+	return this->GetID(this->defaultIndex);
+}
+
+std::wstring AudioDeviceController::GetDefaultName() {
+	return this->GetName(this->defaultIndex);
+}
+
+std::wstring AudioDeviceController::GetID(UINT index) {
+	return this->GetStringProp(index, PKEY_Device_InstanceId);
+}
+
+std::wstring AudioDeviceController::GetName(UINT index) {
+	return this->GetStringProp(index, PKEY_Device_FriendlyName);
+}
+
+std::wstring AudioDeviceController::GetID(UINT index) {
+	return this->GetStringProp(index, PKEY_Device_InstanceId);
+}
+
+BOOL AudioDeviceController::IsDefault(UINT index) {
+	return index == this->defaultIndex;
+}
+
+VOID AudioDeviceController::SetDefault(UINT index) {
+	IMMDevice* audioEndpoint;
+	LPWSTR deviceID = NULL;
+	this->audioDevices->Item(index, &audioEndpoint);
+	audioEndpoint->GetId(&deviceID);
+	RegisterDevice(deviceID, eMultimedia);
+}
+
+UINT AudioDeviceController::Count() {
+	return this->deviceCount;
+}
+
+std::wstring AudioDeviceController::GetStringProp(UINT index, PROPERTYKEY key) {
+	WCHAR propertyStrBuffer[MAX_STR_LENGTH];
+	IMMDevice* audioEndpoint;
+	IPropertyStore* devProperties;
+	PROPVARIANT nameProp;
+
+	PropVariantInit(&nameProp);
+	this->audioDevices->Item(index, &audioEndpoint);
+	audioEndpoint->OpenPropertyStore(STGM_READ, &devProperties);
+	devProperties->GetValue(key, &nameProp);
+	std::wstring devName;
+	if (nameProp.vt != VT_EMPTY) {
+		PropVariantToString(nameProp, propertyStrBuffer, MAX_STR_LENGTH);
+		devName = std::wstring(propertyStrBuffer, MAX_STR_LENGTH);
+
+		OutputDebugString(L"Device Found: ");
+		OutputDebugString(devName.c_str());
+		OutputDebugString(L"\r\n");
+	}
+	else {
+		devName = L"";
+	}
+	devProperties->Release();
+	audioEndpoint->Release();
+	return devName;
+}
+
+VOID AudioDeviceController::Refresh() {
+	LPWSTR defaultID = NULL;
+	LPWSTR deviceID = NULL;
+	HRESULT hr = S_OK;
+	IMMDevice* audioEndpoint;
+
+	pEnumerator->GetDefaultAudioEndpoint(eRender, eMultimedia, &audioEndpoint);
+
+	audioEndpoint->GetId(&defaultID);
+	audioEndpoint->Release();
+
+	pEnumerator->EnumAudioEndpoints(eRender, eMultimedia, &this->audioDevices);
+
+	this->audioDevices->GetCount(&this->deviceCount);
+
+	for (int i = 0; i < this->deviceCount;i++) {
+		
+		this->audioDevices->Item(i, &audioEndpoint);
+		audioEndpoint->GetId(&deviceID);
+
+		if (wcscmp(defaultID, deviceID)) {
+			this->defaultIndex = i;
+		}
+		audioEndpoint->Release();
+	}
+
+}
+
+// See: http://social.microsoft.com/Forums/en/Offtopic/thread/9ebd7ad6-a460-4a28-9de9-2af63fd4a13e
+HRESULT RegisterDevice(LPCWSTR devID, ERole role)
+{
+	IPolicyConfig* pPolicyConfig = nullptr;
+
+	HRESULT hr = CoCreateInstance(__uuidof(CPolicyConfigClient), NULL, CLSCTX_ALL, __uuidof(IPolicyConfig), (LPVOID*)&pPolicyConfig);
+	if (pPolicyConfig == nullptr) {
+		hr = CoCreateInstance(__uuidof(CPolicyConfigClient), NULL, CLSCTX_ALL, __uuidof(IPolicyConfig10), (LPVOID*)&pPolicyConfig);
+	}
+	if (pPolicyConfig == nullptr) {
+		hr = CoCreateInstance(__uuidof(CPolicyConfigClient), NULL, CLSCTX_ALL, __uuidof(IPolicyConfig7), (LPVOID*)&pPolicyConfig);
+	}
+	if (pPolicyConfig == nullptr) {
+		hr = CoCreateInstance(__uuidof(CPolicyConfigClient), NULL, CLSCTX_ALL, __uuidof(IPolicyConfigVista), (LPVOID*)&pPolicyConfig);
+	}
+	if (pPolicyConfig == nullptr) {
+		hr = CoCreateInstance(__uuidof(CPolicyConfigClient), NULL, CLSCTX_ALL, __uuidof(IPolicyConfig10_1), (LPVOID*)&pPolicyConfig);
+	}
+
+	if (pPolicyConfig != NULL) {
+		hr = pPolicyConfig->SetDefaultEndpoint(devID, role);
+		pPolicyConfig->Release();
+	}
+	return hr;
+}

@@ -55,6 +55,8 @@ VOID AudioDeviceController::SetDefault(UINT index) {
 	this->audioDevices->Item(index, &audioEndpoint);
 	audioEndpoint->GetId(&deviceID);
 	RegisterDevice(deviceID, eMultimedia);
+
+	CoTaskMemFree(deviceID);
 }
 
 UINT AudioDeviceController::Count() {
@@ -110,8 +112,11 @@ VOID AudioDeviceController::Refresh() {
 		if (!wcscmp(defaultID, deviceID)) {
 			this->defaultIndex = i;
 		}
+
+		CoTaskMemFree(deviceID);
 		audioEndpoint->Release();
 	}
+	CoTaskMemFree(defaultID);
 
 }
 

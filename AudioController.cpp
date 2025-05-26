@@ -7,6 +7,8 @@
 
 #define MAX_STR_LENGTH 50
 
+HRESULT RegisterDevice(LPCWSTR, ERole);
+
 const CLSID CLSID_MMDeviceEnumerator = __uuidof(MMDeviceEnumerator);
 const IID IID_IMMDeviceEnumerator = __uuidof(IMMDeviceEnumerator);
 
@@ -43,10 +45,6 @@ std::wstring AudioDeviceController::GetName(UINT index) {
 	return this->GetStringProp(index, PKEY_Device_FriendlyName);
 }
 
-std::wstring AudioDeviceController::GetID(UINT index) {
-	return this->GetStringProp(index, PKEY_Device_InstanceId);
-}
-
 BOOL AudioDeviceController::IsDefault(UINT index) {
 	return index == this->defaultIndex;
 }
@@ -77,10 +75,6 @@ std::wstring AudioDeviceController::GetStringProp(UINT index, PROPERTYKEY key) {
 	if (nameProp.vt != VT_EMPTY) {
 		PropVariantToString(nameProp, propertyStrBuffer, MAX_STR_LENGTH);
 		devName = std::wstring(propertyStrBuffer, MAX_STR_LENGTH);
-
-		OutputDebugString(L"Device Found: ");
-		OutputDebugString(devName.c_str());
-		OutputDebugString(L"\r\n");
 	}
 	else {
 		devName = L"";
@@ -101,6 +95,9 @@ VOID AudioDeviceController::Refresh() {
 	audioEndpoint->GetId(&defaultID);
 	audioEndpoint->Release();
 
+	if (this->audioDevices != NULL) {
+		this->audioDevices->Release();
+	}
 	pEnumerator->EnumAudioEndpoints(eRender, eMultimedia, &this->audioDevices);
 
 	this->audioDevices->GetCount(&this->deviceCount);
@@ -110,7 +107,7 @@ VOID AudioDeviceController::Refresh() {
 		this->audioDevices->Item(i, &audioEndpoint);
 		audioEndpoint->GetId(&deviceID);
 
-		if (wcscmp(defaultID, deviceID)) {
+		if (!wcscmp(defaultID, deviceID)) {
 			this->defaultIndex = i;
 		}
 		audioEndpoint->Release();

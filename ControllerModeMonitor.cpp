@@ -582,8 +582,8 @@ VOID DisplayBalloonMessage(UINT stringID) {
     updateData.uFlags = NIF_INFO | NIF_GUID;
     updateData.guidItem = TRAY_GUID;
     updateData.uTimeout = 5000;
-    LoadString(hInst, stringID, updateData.szInfo, sizeof(updateData.szInfo));
-    LoadString(hInst, IDS_BALLOON_TITLE, updateData.szInfoTitle, sizeof(updateData.szInfoTitle));
+    LoadString(hInst, stringID, updateData.szInfo, sizeof(updateData.szInfo) / sizeof(WCHAR));
+    LoadString(hInst, IDS_BALLOON_TITLE, updateData.szInfoTitle, sizeof(updateData.szInfoTitle) / sizeof(WCHAR));
 
     //GetLastError();
     int res = Shell_NotifyIcon(NIM_MODIFY, &updateData);

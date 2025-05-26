@@ -35,6 +35,7 @@
 #define CC_DEVICE_NOT_FOUND (CC_CUSTOM_START + 1)
 #define CC_CONFIG_NOT_FOUND (CC_CUSTOM_START + 2)
 #define CC_AUDIO_DEVICE_NOT_FOUND (CC_CUSTOM_START + 3)
+#define CC_AUDIO_DEFAULT_NOT_RESTORED (CC_CUSTOM_START + 4)
 
 UINT const WMAPP_NOTIFYCALLBACK = WM_APP + 1;
 
@@ -261,15 +262,24 @@ VOID ReadXmlSettings() {
         pugi::xml_node audioDeviceNode = audioNode.child("ControllerModeAudioDevice");
         std::wstring controllerModeDeviceName = pugi::as_wide(audioDeviceNode.child_value());
 
+        pugi::xml_node audioStoredDefaultDeviceNode = audioNode.child("ControllerModeSavedDefaultAudioDevice");
+        std::wstring storedDefaultDeviceName = pugi::as_wide(audioStoredDefaultDeviceNode.child_value());
+
         for (int j = 0; j < audioController->DeviceCount(); j++) {
             std::wstring foundDeviceName = audioController->GetName(j);
             if (foundDeviceName == controllerModeDeviceName) {
                 controllerModeAudioDevice = j;
             }
+
+            if (foundDeviceName == storedDefaultDeviceName) {
+                saveAudioDefaultDevice = j;
+            }
         }
         if (controllerModeAudioDevice == -1) {
-
             SendMessage(hWnd, WM_COMMAND, CC_AUDIO_DEVICE_NOT_FOUND, 0);
+        }
+        if (saveAudioDefaultDevice != -1) {
+            SendMessage(hWnd, WM_COMMAND, CC_AUDIO_DEFAULT_NOT_RESTORED, 0);
         }
     }
 }
@@ -316,6 +326,11 @@ VOID WriteXmlSettings() {
         std::wstring audioDeviceName = audioController->GetName(controllerModeAudioDevice);
 
         audioNode.append_child("ControllerModeAudioDevice").append_child(pugi::node_pcdata).set_value(pugi::as_utf8(audioDeviceName));
+
+        if (saveAudioDefaultDevice != -1) {
+            audioDeviceName = audioController->GetName(controllerModeAudioDevice);
+            audioNode.append_child("ControllerModeSavedDefaultAudioDevice").append_child(pugi::node_pcdata).set_value(pugi::as_utf8(audioDeviceName));
+        }
     }
 
     configDocument.save_file(full_path.c_str());
@@ -460,6 +475,7 @@ VOID UpdateStatus() {
         if (saveAudioDefaultDevice != -1) {
             audioController->SetDefault(saveAudioDefaultDevice);
             saveAudioDefaultDevice = -1;
+            WriteXmlSettings();
         }
     }
     else if (!controllerModeActive && isConnected) {
@@ -473,6 +489,7 @@ VOID UpdateStatus() {
         if (controllerModeAudioDevice != -1) {
             saveAudioDefaultDevice = audioController->DefaultIndex();
             audioController->SetDefault(controllerModeAudioDevice);
+            WriteXmlSettings();
         }
 
         LoadString(hInst, IDS_CMD_BIG_PICTURE_ACTIVATE, commandText, MAX_LOADSTRING);
@@ -634,6 +651,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 case CC_CONFIG_NOT_FOUND:
                     DisplayBalloonMessage(IDS_CONFIG_NOT_FOUND);
                     break;
+                case CC_AUDIO_DEVICE_NOT_FOUND:
+                    DisplayBalloonMessage(IDS_AUDIO_DEVICE_NOT_FOUND);
+                    break;
+                case CC_AUDIO_DEFAULT_NOT_RESTORED:
+                    DisplayBalloonMessage(IDS_RESTORE_AUDIO_DEVICE);
+                    break;
                 case IDM_AUDIO_CLEAR:
                     SetAudioDevice(-1);
                     break;
@@ -676,6 +699,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 break;
 
             case NIN_BALLOONUSERCLICK:
+                if (!controllerModeActive && saveAudioDefaultDevice != 0) {
+                    audioController->SetDefault(saveAudioDefaultDevice);
+                    saveAudioDefaultDevice = -1;
+                    WriteXmlSettings();
+                }
                 break;
 
             case NIN_SELECT:

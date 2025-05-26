@@ -105,7 +105,7 @@ BOOL InitializeWMI()
         CloseMonitor();
         return 1;               // Program has failed.
     }
-
+    return 0;
 }
 
 BOOL IsDeviceConnected(){
@@ -227,8 +227,6 @@ std::set<std::wstring> GetDeviceList() {
 }
 
 VOID CloseMonitor() {
-    
-    HRESULT hres;
     if (pSvc != NULL) pSvc->Release();
     if (pLoc != NULL) pLoc->Release();
     pLoc = NULL;

@@ -1,4 +1,4 @@
-// ControllerModeMonitor.cpp : Defines the entry point for the application.
+﻿// ControllerModeMonitor.cpp : Defines the entry point for the application.
 //
 
 #include "framework.h"
@@ -336,6 +336,52 @@ VOID WriteXmlSettings() {
     configDocument.save_file(full_path.c_str());
 }
 
+BOOL IsStartupRegistered() {
+    HKEY hKey;
+    LSTATUS status = RegCreateKeyEx(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_READ, NULL, &hKey, NULL);
+
+    if (ERROR_SUCCESS == status) {
+        status = RegQueryValueEx(hKey, L"ControllerModeMonitor", 0, NULL, NULL, NULL);
+        RegCloseKey(hKey);
+    }
+    return (status == ERROR_SUCCESS);
+}
+
+BOOL RegisterAsStartup() {
+    HKEY hKey;
+    WCHAR exePath[MAX_LOADSTRING];
+
+    // This is probably an unhinged way to
+    // build this quoted string but I wanted to know if it would work
+    // and it does so ¯\_(ツ)_/¯
+    exePath[0] = L'\"';
+    GetModuleFileName(NULL, (exePath + 1), MAX_LOADSTRING - 2);
+    WCHAR quotedPath[MAX_LOADSTRING];
+    int strLength = wcslen(exePath);
+    exePath[strLength++] = L'\"';
+    exePath[strLength++] = 0;
+
+    LSTATUS status = RegCreateKeyEx(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
+
+    if (ERROR_SUCCESS == status) {
+        status = RegSetValueEx(hKey, L"ControllerModeMonitor",0 , REG_SZ, (LPBYTE)exePath, strLength * sizeof(WCHAR));
+        RegCloseKey(hKey);
+    }
+    return (status == ERROR_SUCCESS);
+}
+
+BOOL UnregisterAsStartup() {
+    HKEY hKey;
+
+    LSTATUS status = RegCreateKeyEx(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
+
+    if (ERROR_SUCCESS == status) {
+        status = RegDeleteKeyValue(hKey, NULL, L"ControllerModeMonitor");
+        RegCloseKey(hKey);
+    }
+    return (status == ERROR_SUCCESS);
+}
+
 //
 //   FUNCTION: AddNewDevice()
 //
@@ -669,6 +715,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 case IDM_TV_SEARCH:
                     TriggerTVSearch();
                     break;
+                case ID_FILE_RUNATLOGIN:
+                    if (IsStartupRegistered()) {
+                        UnregisterAsStartup();
+                    }
+                    else {
+                        RegisterAsStartup();
+                    }
+                    break;
                 case IDM_EXIT:
                     CloseMonitor();
                     KillTimer(hWnd, IDT_UPDATETIMER);
@@ -824,6 +878,13 @@ void ShowContextMenu(POINT pt)
                 audioEndpointItem.dwTypeData = const_cast<LPWSTR>(endpointName.c_str());
 
                 InsertMenuItem(hAudioMenu, newItemPos, true, &audioEndpointItem);
+            }
+
+            if (IsStartupRegistered())
+            {
+                WCHAR menuText[MAX_LOADSTRING];
+                GetMenuString(hMainMenu, ID_FILE_RUNATLOGIN, menuText, MAX_LOADSTRING, MF_BYCOMMAND);
+                ModifyMenu(hMainMenu, ID_FILE_RUNATLOGIN, MF_BYCOMMAND | MF_CHECKED, ID_FILE_RUNATLOGIN, menuText);
             }
 
             TrackPopupMenuEx(hMainMenu, uFlags, pt.x, pt.y, hWnd, NULL);

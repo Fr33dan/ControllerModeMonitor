@@ -715,6 +715,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 case IDM_TV_SEARCH:
                     TriggerTVSearch();
                     break;
+                case ID_TV_CLEAR:
+                    currentController = NULL;
+                    WriteXmlSettings();
+                    break;
                 case ID_FILE_RUNATLOGIN:
                     if (IsStartupRegistered()) {
                         UnregisterAsStartup();

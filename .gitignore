@@ -39,6 +39,7 @@ vcpkg_installed
 build
 resource.h
 *.ico
+*.aps
 
 
 RCa*

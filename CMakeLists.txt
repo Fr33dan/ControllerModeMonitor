@@ -15,14 +15,16 @@ ADD_DEFINITIONS(-DUNICODE)
 ADD_DEFINITIONS(-D_UNICODE)
 
 file(GLOB monitorSRC
-     "*.h"
-     "*.cpp"
-     "TV/*.h"
-     "TV/*.cpp"
+     "src/*.h"
+     "src/*.cpp"
+     "src/TV/*.h"
+     "src/TV/*.cpp"
 )
+
 execute_process(COMMAND "pwsh" "build_ico.ps1"
   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
   OUTPUT_VARIABLE ico_out)
+
 find_package(CURL REQUIRED)
 find_package(boost_asio REQUIRED CONFIG)
 find_package(pugixml CONFIG REQUIRED)

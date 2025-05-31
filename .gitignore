@@ -39,3 +39,6 @@ vcpkg_installed
 build
 resource.h
 *.ico
+
+
+RCa*

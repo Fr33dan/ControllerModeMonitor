@@ -29,8 +29,6 @@ find_package(CURL REQUIRED)
 find_package(boost_asio REQUIRED CONFIG)
 find_package(pugixml CONFIG REQUIRED)
 
-message(MONITOR_FILES="${monitorSRC}")
-
 # Add source to this project's executable.
 
 add_executable (ControllerModeMonitor WIN32 ${monitorSRC})

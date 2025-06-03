@@ -1,3 +1,7 @@
+
+if(Test-Path "ControllerModeMonitor.ico"){
+	return
+}
 $inkscape = "C:\Program Files\Inkscape\bin\inkscape.com"
 $resolutionList = 256, 128, 64, 48, 32, 24, 16
 Write-Host "Building ICO"

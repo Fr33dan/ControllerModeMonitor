@@ -2,8 +2,6 @@
 // Microsoft Visual C++ generated include file.
 // Used by ControllerModeMonitor.rc
 //
-#define IDC_MYICON                      2
-#define IDC_IP_ADDRESS                  2
 #define IDD_CONTROLLERMODEMONITOR_DIALOG 102
 #define IDS_APP_TITLE                   103
 #define IDD_ABOUTBOX                    103
@@ -25,10 +23,13 @@
 #define IDS_CONFIG_PATH                 114
 #define IDS_CONFIG_TV                   115
 #define IDS_TV_NOT_FOUND                116
+#define IDS_ERR_TV_NOT_FOUND            116
 #define IDS_BALLOON_TITLE               117
 #define IDS_CONFIG_NOT_FOUND            118
+#define IDS_WELCOME                     118
 #define IDS_RESTORE_AUDIO_DEVICE        119
 #define IDS_AUDIO_DEVICE_NOT_FOUND      120
+#define IDS_ERR_INVALID_INPUT           121
 #define IDR_MAINFRAME                   128
 #define IDS_ADD_PROMPT1                 130
 #define IDS_ADD_PROMPT2_YES             132
@@ -36,6 +37,7 @@
 #define IDC_TV_COMBO                    1000
 #define IDC_BUTTON1                     1002
 #define IDC_BUTTON2                     1003
+#define IDC_IP_ADDRESS                  1004
 #define ID_FILE_ADDDEVICE               32771
 #define IDM_ADDDEVICE                   32772
 #define ID_ADDDEVICE_ADDDEVICE          32773
@@ -48,6 +50,7 @@
 #define IDM_AUDIO_CLEAR                 32780
 #define ID_FILE_RUNATLOGIN              32781
 #define ID_TV_CLEAR                     32782
+#define ID_TV_ADDMANUALLY               32783
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
@@ -56,8 +59,8 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        131
-#define _APS_NEXT_COMMAND_VALUE         32783
-#define _APS_NEXT_CONTROL_VALUE         1003
+#define _APS_NEXT_COMMAND_VALUE         32784
+#define _APS_NEXT_CONTROL_VALUE         1004
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
 #endif

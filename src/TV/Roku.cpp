@@ -10,6 +10,7 @@
 #include "pugixml.hpp"
 #include <codecvt>
 #include <regex>
+#include <vector>
 
 #define SSDP_ADDR "239.255.255.250"
 #define SSDP_PORT "1900"
@@ -105,8 +106,8 @@ std::wstring RokuTVController::GetName() {
     return deviceName + L" - " + deviceLoc;
 }
 
-std::wstring RokuTVController::Serialize() {
-    std::wstring returnVal(this->ipAddress.begin(), this->ipAddress.end());
+std::string RokuTVController::Serialize() {
+    std::string returnVal = this->ipAddress;
     return returnVal;
 }
 
@@ -120,6 +121,51 @@ bool RokuTVController::Equals(TVController* other){
         return (this->ipAddress == o->ipAddress);
     }
     return false;
+}
+
+bool RokuTVController::Validate(std::string &s) {
+    int n = s.size();
+
+    if (n < 7)
+        return false;
+
+    // Using string stream to separate all the string from
+    // '.' and push back into vector like for ex -
+    std::vector<std::string> v;
+    std::stringstream ss(s);
+    while (ss.good())
+    {
+        std::string substr;
+        getline(ss, substr, '.');
+        v.push_back(substr);
+    }
+
+    if (v.size() != 4)
+        return false;
+
+    // Iterating over the generated vector of strings
+    for (int i = 0; i < v.size(); i++)
+    {
+        std::string temp = v[i];
+
+        if (temp.size() > 1)
+        {
+            if (temp[0] == '0')
+                return false;
+        }
+
+        for (int j = 0; j < temp.size(); j++)
+        {
+            if (isalpha(temp[j]))
+                return false;
+        }
+
+        // And lastly we are checking if the number is
+        // greater than 255 or not
+        if (stoi(temp) > 255)
+            return false;
+    }
+    return true;
 }
 
 std::vector<TVController*> RokuTVController::SearchDevices() {

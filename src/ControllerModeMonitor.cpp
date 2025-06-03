@@ -25,6 +25,7 @@
 #include "AudioController.h"
 
 #define MAX_LOADSTRING 100
+#define MAX_IP_LENGTH 15
 #define TRUE_DISCONNECT_COUNT 5
 #define CUSTOM_COMMAND_MASK 0xF000
 #define CC_DEVICE_ID 0xC000
@@ -45,6 +46,8 @@ static const GUID TRAY_GUID = { 0xf6860a80, 0x58c5, 0x46eb, {0xb3, 0x6d, 0x49, 0
 // Global Variables:
 HINSTANCE hInst;                                // current instance
 HWND hWnd;                                      // Main (hidden) window instance
+HWND hWndTVDialog;                              // Window to manually set TV.
+HICON hIcon;
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 WCHAR szController[MAX_LOADSTRING];             // the main window class name
 WCHAR szConfigLocation[MAX_LOADSTRING];         // the main window class name
@@ -70,6 +73,7 @@ VOID                WriteXmlSettings();
 VOID                ReadXmlSettings();
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK    ManualAdd(HWND, UINT, WPARAM, LPARAM);
 VOID                AddNewDevice();
 VOID                ShowContextMenu(POINT);
 VOID                UpdateStatus();
@@ -89,9 +93,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     timeLastSeen = -3000;
 
     // Initialize global strings
-    LoadStringW(hInstance, IDC_CONTROLLERMODEMONITOR, szWindowClass, MAX_LOADSTRING);
-    LoadStringW(hInstance, IDS_CONTROLLER, szController, MAX_LOADSTRING);
-    LoadStringW(hInstance, IDS_CONFIG_PATH, rawPath, MAX_LOADSTRING);
+    LoadString(hInstance, IDC_CONTROLLERMODEMONITOR, szWindowClass, MAX_LOADSTRING);
+    LoadString(hInstance, IDS_CONTROLLER, szController, MAX_LOADSTRING);
+    LoadString(hInstance, IDS_CONFIG_PATH, rawPath, MAX_LOADSTRING);
+    hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_CONTROLLERMODEMONITOR));
     ExpandEnvironmentStrings(rawPath, szConfigLocation, MAX_LOADSTRING);
     MyRegisterClass(hInstance);
 
@@ -149,7 +154,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.cbClsExtra     = 0;
     wcex.cbWndExtra     = 0;
     wcex.hInstance      = hInstance;
-    wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_CONTROLLERMODEMONITOR));
+    wcex.hIcon          = hIcon;
     wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
     wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_CONTROLLERMODEMONITOR);
@@ -210,7 +215,7 @@ VOID InitNotifyTray() {
     LoadString(hInst, IDS_CONTROLLER, nid.szTip, ARRAYSIZE(nid.szTip));
 
     // Load the icon for high DPI.
-    nid.hIcon = LoadIcon(hInst, MAKEINTRESOURCE(IDI_CONTROLLERMODEMONITOR));
+    nid.hIcon = hIcon;
 
     // Show the notification.
     Shell_NotifyIcon(NIM_ADD, &nid) ? S_OK : E_FAIL;
@@ -254,6 +259,7 @@ VOID ReadXmlSettings() {
         if (tvType == "Roku") {
             currentController = new RokuTVController(initInfo);
         }
+        tvList.push_back(currentController);
         currentHDMI = std::stoi(tvNode.child("HDMIPort").child_value());
     }
 
@@ -285,7 +291,7 @@ VOID ReadXmlSettings() {
 }
 
 //
-//   FUNCTION: ReadXmlSettings()
+//   FUNCTION: WriteXmlSettings()
 //
 //   PURPOSE: Save the xml configuration file containing TV and controllers.
 //
@@ -317,7 +323,7 @@ VOID WriteXmlSettings() {
             deviceType = "Roku";
         }
         tvNode.append_child("TVType").append_child(pugi::node_pcdata).set_value(deviceType);
-        tvNode.append_child("TVInitializeInfo").append_child(pugi::node_pcdata).set_value(pugi::as_utf8(currentController->Serialize()));
+        tvNode.append_child("TVInitializeInfo").append_child(pugi::node_pcdata).set_value(currentController->Serialize());
         tvNode.append_child("HDMIPort").append_child(pugi::node_pcdata).set_value(std::to_string(currentHDMI));
     }
 
@@ -598,6 +604,7 @@ VOID SearchTVs() {
         }
         if (!matchFound) {
             SendMessage(hWnd, WM_COMMAND, CC_DEVICE_NOT_FOUND, 0);
+            tvList.push_back(currentController);
         }
     }
     tvSearchRunning = false;
@@ -618,6 +625,18 @@ VOID SearchTVs() {
 VOID SetTV(UINT index) {
     currentController = tvList[index];
     WriteXmlSettings();
+}
+
+VOID ShowManualTVWindow() {
+
+    if (hWndTVDialog == NULL) {
+        hWndTVDialog = CreateDialog(hInst, MAKEINTRESOURCE(IDD_MANUAL_ADD), hWnd, ManualAdd);
+        SendMessage(hWndTVDialog, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+    }
+
+    if (!IsWindowVisible(hWndTVDialog)) {
+        ShowWindow(hWndTVDialog, SW_SHOW);
+    }
 }
 
 VOID SetAudioDevice(int index) {
@@ -692,10 +711,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 switch (wmId)
                 {
                 case CC_DEVICE_NOT_FOUND:
-                    DisplayBalloonMessage(IDS_TV_NOT_FOUND);
+                    DisplayBalloonMessage(IDS_ERR_TV_NOT_FOUND);
                     break;
                 case CC_CONFIG_NOT_FOUND:
-                    DisplayBalloonMessage(IDS_CONFIG_NOT_FOUND);
+                    DisplayBalloonMessage(IDS_WELCOME);
                     break;
                 case CC_AUDIO_DEVICE_NOT_FOUND:
                     DisplayBalloonMessage(IDS_AUDIO_DEVICE_NOT_FOUND);
@@ -714,6 +733,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     break;
                 case IDM_TV_SEARCH:
                     TriggerTVSearch();
+                    break;
+                case ID_TV_ADDMANUALLY:
+                    ShowManualTVWindow();
                     break;
                 case ID_TV_CLEAR:
                     currentController = NULL;
@@ -757,7 +779,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 break;
 
             case NIN_BALLOONUSERCLICK:
-                if (!controllerModeActive && saveAudioDefaultDevice != 0) {
+                if (!controllerModeActive && saveAudioDefaultDevice != -1) {
                     audioController->SetDefault(saveAudioDefaultDevice);
                     saveAudioDefaultDevice = -1;
                     WriteXmlSettings();
@@ -918,6 +940,58 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
             return (INT_PTR)TRUE;
         }
         break;
+    }
+    return (INT_PTR)FALSE;
+}
+
+//
+//   FUNCTION: ShowContextMenu(UINT)
+//
+//   PURPOSE: Message handler for manual add box.
+//
+INT_PTR CALLBACK ManualAdd(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER(lParam);
+    switch (message)
+    {
+    case WM_INITDIALOG: {
+        WCHAR newItem[] = L"Roku";
+        HWND hComboBox = GetDlgItem(hDlg, IDC_TV_COMBO);
+
+        SendMessage(hComboBox, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)newItem);
+        SendMessage(hComboBox, CB_SETCURSEL, (WPARAM)0, (LPARAM)0);
+        SendMessage(hComboBox, CB_LIMITTEXT, (WPARAM)MAX_IP_LENGTH, (LPARAM)0);
+        return (INT_PTR)TRUE;
+    }
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDOK){
+            CHAR inputText[MAX_IP_LENGTH];
+
+            GetDlgItemTextA(hDlg, IDC_IP_ADDRESS, inputText, MAX_IP_LENGTH);
+
+            std::string newIPAddress(inputText);
+
+            if (RokuTVController::Validate(newIPAddress)) {
+                currentController = new RokuTVController(newIPAddress);
+                
+                if (!std::any_of(tvList.begin(), tvList.end(), [](TVController* t) { return t->Equals(currentController); })) {
+                    tvList.push_back(currentController);
+                }
+                WriteXmlSettings();
+            }
+            else {
+                DisplayBalloonMessage(IDS_ERR_INVALID_INPUT);
+            }
+            OutputDebugStringA(inputText);
+        }
+        else if (LOWORD(wParam) != IDCANCEL) {
+        break;
+    }
+
+        HWND hComboBox = GetDlgItem(hDlg, IDC_IP_ADDRESS);
+        SendMessage(hComboBox, CB_RESETCONTENT, (WPARAM)0, (LPARAM)0);
+        EndDialog(hDlg, LOWORD(wParam));
+        return (INT_PTR)TRUE;
     }
     return (INT_PTR)FALSE;
 }

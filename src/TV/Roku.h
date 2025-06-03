@@ -9,7 +9,8 @@ public:
 	static std::vector<TVController*> SearchDevices();
 	void SetInput(int HDMINumber);
 	std::wstring GetName();
-	std::wstring Serialize();
+	std::string Serialize();
+	static bool Validate(std::string&);
 	bool Equals(TVController*);
 	int HDMICount();
 private:

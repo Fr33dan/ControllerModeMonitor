@@ -14,25 +14,26 @@ project ("ControllerModeMonitor")
 ADD_DEFINITIONS(-DUNICODE)
 ADD_DEFINITIONS(-D_UNICODE)
 
-file(GLOB monitorSRC
-     "src/*.h"
-     "src/*.cpp"
-     "src/TV/*.h"
-     "src/TV/*.cpp"
-)
 file(COPY readme.txt DESTINATION .)
 
-execute_process(COMMAND "pwsh" "build_ico.ps1"
-  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-  OUTPUT_VARIABLE ico_out)
+add_custom_target(IconFile 
+  COMMAND "pwsh" "build_ico.ps1"
+  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 
 find_package(CURL REQUIRED)
 find_package(boost_asio REQUIRED CONFIG)
 find_package(pugixml CONFIG REQUIRED)
 
+
 # Add source to this project's executable.
 
-add_executable (ControllerModeMonitor WIN32 ${monitorSRC})
+add_executable (ControllerModeMonitor WIN32 
+"src/TV/Roku.h" "src/TV/Roku.cpp" "src/TV/TV.h"
+"src/AudioController.h" "src/AudioController.cpp"
+"src/ControllerMonitor.h" "src/ControllerMonitor.cpp"
+"src/ControllerModeMonitor.h" "src/ControllerModeMonitor.cpp")
+
+add_dependencies(ControllerModeMonitor IconFile)
 
 target_sources (ControllerModeMonitor PRIVATE ControllerModeMonitor.rc)
 

@@ -14,7 +14,9 @@ public:
 	int HDMICount();
 private:
 	std::string ipAddress;
-	pugi::xml_document* status;
+	pugi::xml_document* deviceInfo;
+	pugi::xml_document* mediaPlayer;
 	void SendCommand(std::string);
-	void UpdateStatus();
+	void UpdateDocument(std::string, pugi::xml_document*);
+	BOOL IsAtHDMI();
 };

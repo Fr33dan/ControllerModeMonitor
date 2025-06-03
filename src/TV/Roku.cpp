@@ -27,8 +27,8 @@ using ip::udp;
 
 RokuTVController::RokuTVController(std::string ipA) {
     ipAddress = ipA;
-    this->status = new pugi::xml_document();
-    this->UpdateStatus();
+    this->deviceInfo = new pugi::xml_document();
+    this->mediaPlayer = new pugi::xml_document();
 }
 
 size_t WriteCallback(char* contents, size_t size, size_t nmemb, void* userp)
@@ -37,9 +37,16 @@ size_t WriteCallback(char* contents, size_t size, size_t nmemb, void* userp)
     return size * nmemb;
 }
 
+BOOL RokuTVController::IsAtHDMI() {
+    this->UpdateDocument("media-player", this->mediaPlayer);
+    pugi::xml_node playerNode = this->mediaPlayer->child("player");
+    pugi::xml_node pluginNode = playerNode.child("plugin");
+    return pluginNode == NULL;
+}
+
 void RokuTVController::SetInput(int HDMINumber) {
-    this->UpdateStatus();
-    pugi::xml_node rootNode = this->status->child("device-info");
+    this->UpdateDocument("device-info", this->deviceInfo);
+    pugi::xml_node rootNode = this->deviceInfo->child("device-info");
     pugi::xml_node powerStatusNode = rootNode.child("power-mode");
     if (!strncmp(powerStatusNode.child_value(), "Ready", 5)) {
         this->SendCommand("keypress/PowerOn");
@@ -48,11 +55,15 @@ void RokuTVController::SetInput(int HDMINumber) {
     }
 
     this->SendCommand("keypress/InputHDMI" + std::to_string(HDMINumber + 1));
+    while (!this->IsAtHDMI()) {
+        Sleep(ROKU_NETWORK_WAIT);
+        this->SendCommand("keypress/InputHDMI" + std::to_string(HDMINumber + 1));
+    }
 }
 
-void RokuTVController::UpdateStatus() {
+void RokuTVController::UpdateDocument(std::string queryCommand, pugi::xml_document * document){
     CURL* curl = curl_easy_init();
-    std::string url = "http://" + this->ipAddress + ":8060/query/device-info";
+    std::string url = "http://" + this->ipAddress + ":8060/query/" + queryCommand;
     if (curl) {
         CURLcode res;
         std::string readBuffer;
@@ -62,7 +73,7 @@ void RokuTVController::UpdateStatus() {
         curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, ROKU_NETWORK_WAIT);
         res = curl_easy_perform(curl);
         curl_easy_cleanup(curl);
-        this->status->load_string(readBuffer.c_str());
+        document->load_string(readBuffer.c_str());
     }
 }
 
@@ -82,7 +93,11 @@ void RokuTVController::SendCommand(std::string command) {
 }
 
 std::wstring RokuTVController::GetName() {
-    pugi::xml_node rootNode = this->status->child("device-info");
+    pugi::xml_node rootNode = this->deviceInfo->child("device-info");
+    if (!rootNode) {
+        this->UpdateDocument("device-info", this->deviceInfo);
+        rootNode = this->deviceInfo->child("device-info");
+    }
     pugi::xml_node devNameNode = rootNode.child("user-device-name");
     std::wstring deviceName = pugi::as_wide(devNameNode.child_value());
     pugi::xml_node devLocNode = rootNode.child("user-device-location");

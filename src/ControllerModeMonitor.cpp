@@ -24,6 +24,10 @@
 #include "TV/Roku.h"
 #include "AudioController.h"
 
+#pragma comment(linker,"\"/manifestdependency:type='win32' \
+name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
+processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
+
 #define MAX_LOADSTRING 100
 #define MAX_IP_LENGTH 15
 #define TRUE_DISCONNECT_COUNT 5
@@ -985,8 +989,8 @@ INT_PTR CALLBACK ManualAdd(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
             OutputDebugStringA(inputText);
         }
         else if (LOWORD(wParam) != IDCANCEL) {
-        break;
-    }
+            break;
+        }
 
         HWND hComboBox = GetDlgItem(hDlg, IDC_IP_ADDRESS);
         SendMessage(hComboBox, CB_RESETCONTENT, (WPARAM)0, (LPARAM)0);

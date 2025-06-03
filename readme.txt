@@ -31,6 +31,8 @@ would have been done if controller mode had be closed normally.
 * Licences                                                                   *
 ******************************************************************************
 
+ControllerModeMonitor utilizes the following libraries:
+
 **************************************
 * curl                               *
 **************************************

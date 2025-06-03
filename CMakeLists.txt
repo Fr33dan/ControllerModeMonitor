@@ -20,6 +20,7 @@ file(GLOB monitorSRC
      "src/TV/*.h"
      "src/TV/*.cpp"
 )
+file(COPY readme.txt DESTINATION .)
 
 execute_process(COMMAND "pwsh" "build_ico.ps1"
   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
@@ -43,4 +44,17 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET ControllerModeMonitor PROPERTY CXX_STANDARD 20)
 endif()
 
+file(GLOB zipContents
+     "${CMAKE_CURRENT_BINARY_DIR}/ControllerModeMonitor.exe"
+     "${CMAKE_CURRENT_BINARY_DIR}/*.dll"
+     "${CMAKE_CURRENT_BINARY_DIR}/readme.txt"
+)
+
+add_custom_command(TARGET ControllerModeMonitor POST_BUILD
+                   COMMAND "pwsh" "-Command" "Compress-Archive"
+                                    "-Path" "'*.exe','*.dll','readme.txt'"
+                                    "-DestinationPath" "ControllerModeMonitor.zip"
+                                    "-CompressionLevel" "Optimal"
+                                    "-Force"
+                   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 # TODO: Add tests and install targets if needed.

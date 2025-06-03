@@ -3,11 +3,13 @@
 // Used by ControllerModeMonitor.rc
 //
 #define IDC_MYICON                      2
+#define IDC_IP_ADDRESS                  2
 #define IDD_CONTROLLERMODEMONITOR_DIALOG 102
 #define IDS_APP_TITLE                   103
 #define IDD_ABOUTBOX                    103
 #define IDM_ABOUT                       104
 #define IDS_CONTROLLER                  104
+#define IDD_MANUAL_ADD                  104
 #define IDM_EXIT                        105
 #define IDS_ADD_PROMPT1_TITLE           105
 #define IDS_ADD_PROMPT2_TITLE           106
@@ -31,6 +33,9 @@
 #define IDS_ADD_PROMPT1                 130
 #define IDS_ADD_PROMPT2_YES             132
 #define IDS_ADD_PROMPT2_NO              133
+#define IDC_TV_COMBO                    1000
+#define IDC_BUTTON1                     1002
+#define IDC_BUTTON2                     1003
 #define ID_FILE_ADDDEVICE               32771
 #define IDM_ADDDEVICE                   32772
 #define ID_ADDDEVICE_ADDDEVICE          32773
@@ -52,7 +57,7 @@
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        131
 #define _APS_NEXT_COMMAND_VALUE         32783
-#define _APS_NEXT_CONTROL_VALUE         1000
+#define _APS_NEXT_CONTROL_VALUE         1003
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
 #endif

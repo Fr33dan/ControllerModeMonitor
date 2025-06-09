@@ -3,7 +3,7 @@
 #include "framework.h"
 #include "PolicyConfig.h"
 
-class AudioDeviceController {
+class AudioDeviceManager {
 public:
 	VOID SetDefault(UINT);
 	std::wstring GetDefaultName();
@@ -14,8 +14,8 @@ public:
 	UINT DefaultIndex();
 	UINT DeviceCount();
 	VOID Refresh();
-	AudioDeviceController();
-	~AudioDeviceController();
+	AudioDeviceManager();
+	~AudioDeviceManager();
 private:
 	std::wstring GetStringProp(UINT, PROPERTYKEY);
 	IMMDeviceEnumerator* pEnumerator = NULL;

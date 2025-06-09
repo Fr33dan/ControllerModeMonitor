@@ -1,21 +1,19 @@
 #pragma once
 
-
-
 #include "pugixml.hpp"
 
 #include "../framework.h"
 #include "TV.h"
 
-class RokuTVController : public TVController {
+class RokuTV : public TV {
 public:
-	RokuTVController(std::string);
-	static std::vector<TVController*> SearchDevices();
+	RokuTV(std::string);
+	static std::vector<TV*> SearchDevices();
 	void SetInput(int HDMINumber);
 	std::wstring GetName();
 	std::string Serialize();
 	static bool Validate(std::string&);
-	bool Equals(TVController*);
+	bool Equals(TV*);
 	int HDMICount();
 private:
 	std::string ipAddress;

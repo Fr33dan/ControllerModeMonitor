@@ -1,4 +1,4 @@
-#include "AudioController.h"
+#include "AudioDeviceManager.h"
 
 #include "propvarutil.h"
 
@@ -11,7 +11,7 @@ HRESULT RegisterDevice(LPCWSTR, ERole);
 const CLSID CLSID_MMDeviceEnumerator = __uuidof(MMDeviceEnumerator);
 const IID IID_IMMDeviceEnumerator = __uuidof(IMMDeviceEnumerator);
 
-AudioDeviceController::AudioDeviceController() {
+AudioDeviceManager::AudioDeviceManager() {
 	HRESULT hr = S_OK;
 	hr = CoCreateInstance(
 		CLSID_MMDeviceEnumerator, NULL,
@@ -19,7 +19,7 @@ AudioDeviceController::AudioDeviceController() {
 		(void**)&pEnumerator);
 }
 
-AudioDeviceController::~AudioDeviceController() {
+AudioDeviceManager::~AudioDeviceManager() {
 	if (this->pEnumerator != NULL) {
 		this->pEnumerator->Release();
 	}
@@ -28,27 +28,27 @@ AudioDeviceController::~AudioDeviceController() {
 	}
 }
 
-std::wstring AudioDeviceController::GetDefaultID() {
+std::wstring AudioDeviceManager::GetDefaultID() {
 	return this->GetID(this->defaultIndex);
 }
 
-std::wstring AudioDeviceController::GetDefaultName() {
+std::wstring AudioDeviceManager::GetDefaultName() {
 	return this->GetName(this->defaultIndex);
 }
 
-std::wstring AudioDeviceController::GetID(UINT index) {
+std::wstring AudioDeviceManager::GetID(UINT index) {
 	return this->GetStringProp(index, PKEY_Device_InstanceId);
 }
 
-std::wstring AudioDeviceController::GetName(UINT index) {
+std::wstring AudioDeviceManager::GetName(UINT index) {
 	return this->GetStringProp(index, PKEY_Device_FriendlyName);
 }
 
-BOOL AudioDeviceController::IsDefault(UINT index) {
+BOOL AudioDeviceManager::IsDefault(UINT index) {
 	return index == this->defaultIndex;
 }
 
-VOID AudioDeviceController::SetDefault(UINT index) {
+VOID AudioDeviceManager::SetDefault(UINT index) {
 	IMMDevice* audioEndpoint;
 	LPWSTR deviceID = NULL;
 	this->audioDevices->Item(index, &audioEndpoint);
@@ -58,15 +58,15 @@ VOID AudioDeviceController::SetDefault(UINT index) {
 	CoTaskMemFree(deviceID);
 }
 
-UINT AudioDeviceController::DeviceCount() {
+UINT AudioDeviceManager::DeviceCount() {
 	return this->deviceCount;
 }
 
-UINT AudioDeviceController::DefaultIndex() {
+UINT AudioDeviceManager::DefaultIndex() {
 	return this->defaultIndex;
 }
 
-std::wstring AudioDeviceController::GetStringProp(UINT index, PROPERTYKEY key) {
+std::wstring AudioDeviceManager::GetStringProp(UINT index, PROPERTYKEY key) {
 	WCHAR propertyStrBuffer[MAX_STR_LENGTH];
 	IMMDevice* audioEndpoint;
 	IPropertyStore* devProperties;
@@ -89,7 +89,7 @@ std::wstring AudioDeviceController::GetStringProp(UINT index, PROPERTYKEY key) {
 	return devName;
 }
 
-VOID AudioDeviceController::Refresh() {
+VOID AudioDeviceManager::Refresh() {
 	LPWSTR defaultID = NULL;
 	LPWSTR deviceID = NULL;
 	HRESULT hr = S_OK;

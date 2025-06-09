@@ -21,7 +21,7 @@
 using namespace boost::asio;
 using ip::udp;
 
-RokuTVController::RokuTVController(std::string ipA) {
+RokuTV::RokuTV(std::string ipA) {
     ipAddress = ipA;
     this->deviceInfo = new pugi::xml_document();
     this->mediaPlayer = new pugi::xml_document();
@@ -33,14 +33,14 @@ size_t WriteCallback(char* contents, size_t size, size_t nmemb, void* userp)
     return size * nmemb;
 }
 
-BOOL RokuTVController::IsAtHDMI() {
+BOOL RokuTV::IsAtHDMI() {
     this->UpdateDocument("media-player", this->mediaPlayer);
     pugi::xml_node playerNode = this->mediaPlayer->child("player");
     pugi::xml_node pluginNode = playerNode.child("plugin");
     return pluginNode == NULL;
 }
 
-void RokuTVController::SetInput(int HDMINumber) {
+void RokuTV::SetInput(int HDMINumber) {
     this->UpdateDocument("device-info", this->deviceInfo);
     pugi::xml_node rootNode = this->deviceInfo->child("device-info");
     pugi::xml_node powerStatusNode = rootNode.child("power-mode");
@@ -57,7 +57,7 @@ void RokuTVController::SetInput(int HDMINumber) {
     }
 }
 
-void RokuTVController::UpdateDocument(std::string queryCommand, pugi::xml_document * document){
+void RokuTV::UpdateDocument(std::string queryCommand, pugi::xml_document * document){
     CURL* curl = curl_easy_init();
     std::string url = "http://" + this->ipAddress + ":8060/query/" + queryCommand;
     if (curl) {
@@ -73,7 +73,7 @@ void RokuTVController::UpdateDocument(std::string queryCommand, pugi::xml_docume
     }
 }
 
-void RokuTVController::SendCommand(std::string command) {
+void RokuTV::SendCommand(std::string command) {
     CURL* curl = curl_easy_init();
     std::string url = "http://" + this->ipAddress + ":8060/" + command;
     if (curl) {
@@ -88,7 +88,7 @@ void RokuTVController::SendCommand(std::string command) {
     }
 }
 
-std::wstring RokuTVController::GetName() {
+std::wstring RokuTV::GetName() {
     pugi::xml_node rootNode = this->deviceInfo->child("device-info");
     if (!rootNode) {
         this->UpdateDocument("device-info", this->deviceInfo);
@@ -101,24 +101,24 @@ std::wstring RokuTVController::GetName() {
     return deviceName + L" - " + deviceLoc;
 }
 
-std::string RokuTVController::Serialize() {
+std::string RokuTV::Serialize() {
     std::string returnVal = this->ipAddress;
     return returnVal;
 }
 
-int RokuTVController::HDMICount() {
+int RokuTV::HDMICount() {
     return 4;
 }
 
-bool RokuTVController::Equals(TVController* other){
-    RokuTVController* o = dynamic_cast<RokuTVController*>(other);
+bool RokuTV::Equals(TV* other){
+    RokuTV* o = dynamic_cast<RokuTV*>(other);
     if (o) {
         return (this->ipAddress == o->ipAddress);
     }
     return false;
 }
 
-bool RokuTVController::Validate(std::string &s) {
+bool RokuTV::Validate(std::string &s) {
     int n = s.size();
 
     if (n < 7)
@@ -163,8 +163,8 @@ bool RokuTVController::Validate(std::string &s) {
     return true;
 }
 
-std::vector<TVController*> RokuTVController::SearchDevices() {
-    std::vector<TVController*> returnVal;
+std::vector<TV*> RokuTV::SearchDevices() {
+    std::vector<TV*> returnVal;
     boost::asio::io_context io_context;
     udp::resolver resolver(io_context);
     udp::endpoint sender_endpoint = *resolver.resolve(udp::v4(), SSDP_ADDR, SSDP_PORT).begin();;
@@ -193,7 +193,7 @@ std::vector<TVController*> RokuTVController::SearchDevices() {
                 OutputDebugStringA("Found Roku Device ");
                 OutputDebugStringA(matches[1].str().c_str());
                 OutputDebugStringA("\r\n");
-                returnVal.push_back(new RokuTVController(matches[1].str()));
+                returnVal.push_back(new RokuTV(matches[1].str()));
             }
         }
         catch (boost::system::system_error e) {

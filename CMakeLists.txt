@@ -27,11 +27,7 @@ find_package(pugixml CONFIG REQUIRED)
 
 # Add source to this project's executable.
 
-add_executable (ControllerModeMonitor WIN32 
-"src/TV/Roku.h" "src/TV/Roku.cpp" "src/TV/TV.h"
-"src/AudioController.h" "src/AudioController.cpp"
-"src/ControllerMonitor.h" "src/ControllerMonitor.cpp"
-"src/ControllerModeMonitor.h" "src/ControllerModeMonitor.cpp")
+add_executable (ControllerModeMonitor WIN32 "src/TV/Roku.cpp" "src/AudioController.cpp" "src/ControllerMonitor.cpp" "src/ControllerModeMonitor.cpp")
 
 add_dependencies(ControllerModeMonitor IconFile)
 

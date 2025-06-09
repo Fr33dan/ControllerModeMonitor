@@ -1,16 +1,11 @@
-#include "../framework.h"
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <stdio.h>
-#include "curl/curl.h"
-#include <boost/asio.hpp>
-#include <iostream>
-#include "Roku.h"
-#include <time.h>
-#include "pugixml.hpp"
-#include <codecvt>
 #include <regex>
-#include <vector>
+
+#include <boost/asio.hpp>
+#include "curl/curl.h"
+#include "pugixml.hpp"
+
+#include "../framework.h"
+#include "Roku.h"
 
 #define SSDP_ADDR "239.255.255.250"
 #define SSDP_PORT "1900"

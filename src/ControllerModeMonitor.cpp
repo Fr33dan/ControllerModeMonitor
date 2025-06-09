@@ -1,25 +1,15 @@
 ﻿// ControllerModeMonitor.cpp : Defines the entry point for the application.
 //
+#include "ControllerModeMonitor.h"
 
-#include "framework.h"
-
-#include <iostream>
-#include <comdef.h>
-#include <Wbemidl.h>
-#include <vector>
-#include <algorithm>
-#include <fstream>
+#include <atomic>
 #include <filesystem>
 #include <set>
+#include <setupapi.h>
+#include <shellapi.h>
 #include <thread>
-#include <atomic>
-#include <typeinfo>
-
-#include "shellapi.h"
-#include "setupapi.h"
 
 #include "ControllerMonitor.h"
-#include "ControllerModeMonitor.h"
 #include "TV/TV.h"
 #include "TV/Roku.h"
 #include "AudioController.h"

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "framework.h"
 #include <set>
-#include <string>
+
+#include "framework.h"
 
 BOOL InitializeWMI();
 BOOL IsDeviceConnected();

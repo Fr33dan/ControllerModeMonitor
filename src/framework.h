@@ -13,3 +13,6 @@
 #include <malloc.h>
 #include <memory.h>
 #include <tchar.h>
+// Common C++ Standard libraries
+#include <vector>
+#include <string>

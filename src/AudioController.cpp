@@ -1,7 +1,6 @@
-#include "windows.h"
-#include "propvarutil.h"
-
 #include "AudioController.h"
+
+#include "propvarutil.h"
 
 #pragma comment(lib, "Propsys.lib")
 

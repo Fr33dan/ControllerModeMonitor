@@ -119,7 +119,7 @@ bool RokuTV::Equals(TV* other){
 }
 
 bool RokuTV::Validate(std::string &s) {
-    int n = s.size();
+    size_t n = s.size();
 
     if (n < 7)
         return false;

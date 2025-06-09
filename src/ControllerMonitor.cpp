@@ -130,7 +130,7 @@ BOOL IsDeviceConnected(){
     // Remove last ' or' and end and close parenthesis
     query.resize(query.length() - 3);
     query.append(L")");
-    BSTR queryStr = SysAllocStringLen(query.data(), query.size());
+    BSTR queryStr = SysAllocStringLen(query.data(), (UINT)query.size());
     hres = pSvc->ExecQuery(
         bstr_t("WQL"),
         queryStr,

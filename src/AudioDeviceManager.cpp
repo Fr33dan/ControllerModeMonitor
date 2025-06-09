@@ -107,7 +107,7 @@ VOID AudioDeviceManager::Refresh() {
 
 	this->audioDevices->GetCount(&this->deviceCount);
 
-	for (int i = 0; i < this->deviceCount;i++) {
+	for (UINT i = 0; i < this->deviceCount;i++) {
 		
 		this->audioDevices->Item(i, &audioEndpoint);
 		audioEndpoint->GetId(&deviceID);

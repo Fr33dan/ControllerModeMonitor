@@ -265,7 +265,7 @@ VOID ReadXmlSettings() {
         pugi::xml_node audioStoredDefaultDeviceNode = audioNode.child("ControllerModeSavedDefaultAudioDevice");
         std::wstring storedDefaultDeviceName = pugi::as_wide(audioStoredDefaultDeviceNode.child_value());
 
-        for (int j = 0; j < audioDeviceManager->DeviceCount(); j++) {
+        for (UINT j = 0; j < audioDeviceManager->DeviceCount(); j++) {
             std::wstring foundDeviceName = audioDeviceManager->GetName(j);
             if (foundDeviceName == controllerModeDeviceName) {
                 controllerModeAudioDevice = j;
@@ -356,15 +356,14 @@ BOOL RegisterAsStartup() {
     // and it does so ¯\_(ツ)_/¯
     exePath[0] = L'\"';
     GetModuleFileName(NULL, (exePath + 1), MAX_LOADSTRING - 2);
-    WCHAR quotedPath[MAX_LOADSTRING];
-    int strLength = wcslen(exePath);
+    size_t strLength = wcslen(exePath);
     exePath[strLength++] = L'\"';
     exePath[strLength++] = 0;
 
     LSTATUS status = RegCreateKeyEx(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
 
     if (ERROR_SUCCESS == status) {
-        status = RegSetValueEx(hKey, L"ControllerModeMonitor",0 , REG_SZ, (LPBYTE)exePath, strLength * sizeof(WCHAR));
+        status = RegSetValueEx(hKey, L"ControllerModeMonitor",0 , REG_SZ, (LPBYTE)exePath, (DWORD)strLength * sizeof(WCHAR));
         RegCloseKey(hKey);
     }
     return (status == ERROR_SUCCESS);

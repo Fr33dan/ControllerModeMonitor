@@ -2,7 +2,7 @@
 
 Controller Mode monitor is designed to create console-like functionality from a Windows PC.
 
-When a wireless controller is turned on/connected, CMM activates Steam controller UI mode (aka Big Picture mode) and if desired, instructs a TV to switch to the computer (mimicking CEC functionality) and changes the audio device. When the controller is disconnected/turned the reverse is done.
+When a wireless controller is turned on/connected, CMM activates Steam controller UI mode (aka Big Picture mode) and if desired, instructs a TV to switch to the computer (mimicking CEC functionality) and changes the audio device. When the controller is disconnected/turned off the reverse is done.
 
 If your TV is not your normal primary display, it is recommended to use Steam settings to adjust the primary display when controller UI mode is activated.
 

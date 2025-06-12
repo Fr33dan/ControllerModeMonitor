@@ -258,13 +258,13 @@ VOID ReadXmlSettings() {
             }
 
             if (foundDeviceName == storedDefaultDeviceName) {
-                modeManager.saveAudioDefaultDevice = j;
+                modeManager.savedAudioDefaultDevice = j;
             }
         }
         if (modeManager.controllerModeAudioDevice == -1) {
             SendMessage(hWnd, WM_COMMAND, CC_AUDIO_DEVICE_NOT_FOUND, 0);
         }
-        if (modeManager.saveAudioDefaultDevice != -1) {
+        if (modeManager.savedAudioDefaultDevice != -1) {
             SendMessage(hWnd, WM_COMMAND, CC_AUDIO_DEFAULT_NOT_RESTORED, 0);
         }
     }
@@ -313,7 +313,7 @@ VOID WriteXmlSettings() {
 
         audioNode.append_child("ControllerModeAudioDevice").append_child(pugi::node_pcdata).set_value(pugi::as_utf8(audioDeviceName));
 
-        if (modeManager.saveAudioDefaultDevice != -1) {
+        if (modeManager.savedAudioDefaultDevice != -1) {
             audioDeviceName = modeManager.audioDeviceManager.GetName(modeManager.controllerModeAudioDevice);
             audioNode.append_child("ControllerModeSavedDefaultAudioDevice").append_child(pugi::node_pcdata).set_value(pugi::as_utf8(audioDeviceName));
         }

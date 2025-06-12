@@ -61,9 +61,9 @@ VOID ModeManager::UpdateStatus() {
         controllerModeActive = false;
         LoadString(hInst, IDS_CMD_BIG_PICTURE_DEACTIVATE, commandText, MAX_LOADSTRING);
 
-        if (saveAudioDefaultDevice != -1) {
-            audioDeviceManager.SetDefault(saveAudioDefaultDevice);
-            saveAudioDefaultDevice = -1;
+            if (savedAudioDefaultDevice != -1) {
+                audioDeviceManager.SetDefault(savedAudioDefaultDevice);
+                savedAudioDefaultDevice = -1;
             this->WriteSettingsCallback();
         }
     }
@@ -76,7 +76,7 @@ VOID ModeManager::UpdateStatus() {
         }
 
         if (controllerModeAudioDevice != -1) {
-            saveAudioDefaultDevice = audioDeviceManager.DefaultIndex();
+            savedAudioDefaultDevice = audioDeviceManager.DefaultIndex();
             audioDeviceManager.SetDefault(controllerModeAudioDevice);
             this->WriteSettingsCallback();
         }
@@ -90,9 +90,9 @@ VOID ModeManager::UpdateStatus() {
 }
 
 VOID ModeManager::RestoreAudioDevice() {
-    if (!controllerModeActive && saveAudioDefaultDevice != -1) {
-        audioDeviceManager.SetDefault(saveAudioDefaultDevice);
-        saveAudioDefaultDevice = -1;
+    if (!controllerModeActive && savedAudioDefaultDevice != -1) {
+        audioDeviceManager.SetDefault(savedAudioDefaultDevice);
+        savedAudioDefaultDevice = -1;
         this->WriteSettingsCallback();
     }
 }

@@ -19,7 +19,7 @@ public:
 	BOOL controllerModeActive = false;				// If controller mode is currently activated
 	std::shared_ptr<TV> currentTV;		            // Current TV to attempt to change input on
 													// when controller mode is activated.
-	int saveAudioDefaultDevice = -1;                // Audio device to restore when controller mode is exited.
+	int savedAudioDefaultDevice = -1;                // Audio device to restore when controller mode is exited.
 	int controllerModeAudioDevice = -1;             // Audio device to activate when controller mode is activated.
 private:
 	VOID(*WriteSettingsCallback)();

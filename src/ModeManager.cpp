@@ -1,10 +1,10 @@
 #include "ModeManager.h"
 
 #include <time.h>
-#include <shellapi.h>
 
-#include "ControllerMonitor.h"
 #include "../resource.h"
+#include "ControllerMonitor.h"
+#include "SteamStatus.h"
 
 //
 //   FUNCTION: UpdateStatus()
@@ -46,7 +46,6 @@ HRESULT ModeManager::Init(VOID(*writeSettingsCallback)()) {
 VOID ModeManager::UpdateStatus() {
     audioDeviceManager.Refresh();
     BOOL isConnected = IsDeviceConnected();
-    WCHAR commandText[MAX_LOADSTRING] = L"";
 
     if (!isConnected) {
         time_t currentTime = clock();
@@ -57,14 +56,17 @@ VOID ModeManager::UpdateStatus() {
     }
 
     if (controllerModeActive && !isConnected) {
-        // Deactivate contoller mode.
-        controllerModeActive = false;
-        LoadString(hInst, IDS_CMD_BIG_PICTURE_DEACTIVATE, commandText, MAX_LOADSTRING);
+        // Only exit controller mode if the running game has been closed.
+        if (!SteamIsGameRunning()) {
+            // Deactivate contoller mode.
+            controllerModeActive = false;
 
             if (savedAudioDefaultDevice != -1) {
                 audioDeviceManager.SetDefault(savedAudioDefaultDevice);
                 savedAudioDefaultDevice = -1;
-            this->WriteSettingsCallback();
+                this->WriteSettingsCallback();
+            }
+            SteamExitBigPicture();
         }
     }
     else if (!controllerModeActive && isConnected) {
@@ -80,12 +82,7 @@ VOID ModeManager::UpdateStatus() {
             audioDeviceManager.SetDefault(controllerModeAudioDevice);
             this->WriteSettingsCallback();
         }
-
-        LoadString(hInst, IDS_CMD_BIG_PICTURE_ACTIVATE, commandText, MAX_LOADSTRING);
-    }
-
-    if (commandText[0] != 0) {
-        ShellExecute(0, L"open", commandText, nullptr, nullptr, SW_SHOWNORMAL);
+        SteamActivateBigPicture();
     }
 }
 

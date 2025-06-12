@@ -4,7 +4,7 @@
 
 #include "framework.h"
 
-BOOL InitializeWMI();
+HRESULT InitializeWMI();
 BOOL IsDeviceConnected();
 VOID CloseMonitor();
 std::set<std::wstring> GetDeviceList();

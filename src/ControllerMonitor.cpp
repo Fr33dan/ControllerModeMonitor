@@ -11,7 +11,7 @@ IWbemServices* pSvc = NULL;
 
 std::set<std::wstring> monitoredDeviceList;
 
-BOOL InitializeWMI()
+HRESULT InitializeWMI()
 {
     HRESULT hres;
 
@@ -44,7 +44,7 @@ BOOL InitializeWMI()
     if (FAILED(hres))
     {
         CloseMonitor();
-        return 1;                    // Program has failed.
+        return hres;                    // Program has failed.
     }
 
     // Step 3: ---------------------------------------------------
@@ -61,7 +61,7 @@ BOOL InitializeWMI()
     if (FAILED(hres))
     {
         CloseMonitor();
-        return 1;                 // Program has failed.
+        return hres;                 // Program has failed.
     }
 
     // Step 4: -----------------------------------------------------
@@ -84,7 +84,7 @@ BOOL InitializeWMI()
     if (FAILED(hres))
     {
         CloseMonitor();
-        return 1;                // Program has failed.
+        return hres;                // Program has failed.
     }
 
     // Step 5: --------------------------------------------------
@@ -104,9 +104,9 @@ BOOL InitializeWMI()
     if (FAILED(hres))
     {
         CloseMonitor();
-        return 1;               // Program has failed.
+        return hres;               // Program has failed.
     }
-    return 0;
+    return hres;
 }
 
 BOOL IsDeviceConnected(){

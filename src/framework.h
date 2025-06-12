@@ -16,3 +16,10 @@
 // Common C++ Standard libraries
 #include <vector>
 #include <string>
+#include <memory>
+
+// Common Defines
+#define MAX_LOADSTRING 100
+
+// Application global variables.
+extern HINSTANCE hInst;                                // current instance

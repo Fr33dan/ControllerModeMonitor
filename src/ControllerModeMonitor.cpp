@@ -9,16 +9,17 @@
 #include <shellapi.h>
 #include <thread>
 
-#include "ControllerMonitor.h"
 #include "TV/TV.h"
 #include "TV/Roku.h"
 #include "AudioDeviceManager.h"
+#include "ControllerMonitor.h"
+#include "ModeManager.h"
+#include "../resource.h"
 
 #pragma comment(linker,"\"/manifestdependency:type='win32' \
 name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
 processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
-#define MAX_LOADSTRING 100
 #define MAX_IP_LENGTH 15
 #define TRUE_DISCONNECT_COUNT 5
 #define CUSTOM_COMMAND_MASK 0xF000
@@ -38,25 +39,18 @@ UINT const IDT_UPDATETIMER = 1;
 static const GUID TRAY_GUID = { 0xf6860a80, 0x58c5, 0x46eb, {0xb3, 0x6d, 0x49, 0xe9, 0x15, 0x37, 0x8b, 0x58} };
 
 // Global Variables:
-HINSTANCE hInst;                                // current instance
-HWND hWnd;                                      // Main (hidden) window instance
+HINSTANCE hInst;                                // Application instance.
+HWND hWnd;                                      // Primary (Hidden) window.
 HWND hWndTVDialog;                              // Window to manually set TV.
 HICON hIcon;
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 WCHAR szController[MAX_LOADSTRING];             // the main window class name
 WCHAR szConfigLocation[MAX_LOADSTRING];         // the main window class name
-BOOL controllerModeActive;                      // If controller mode is currently activated
-clock_t timeLastSeen;                           // Clock time the controller was last seen
 std::thread* tvSearchThread;                    // Thread to run the TV search on
 std::atomic<bool> tvSearchRunning(false);       // Atomic boolean to monitor if search is running
-std::vector<TV*> tvList;              // List of TVs found on most recent search.
-TV* currentTV;                // Current TV to attempt to change input on
-                                                // when controller mode is activated.
-int currentHDMI;                                // HDMI port to set the TV to when controller
-                                                // mode is activated.
-AudioDeviceManager* audioDeviceManager;         // Audio device control object
-int saveAudioDefaultDevice = -1;                // Audio device to restore when controller mode is exited.
-int controllerModeAudioDevice = -1;             // Audio device to activate when controller mode is activated.
+std::vector<std::shared_ptr<TV>> tvList;        // List of TVs found on most recent search.
+ModeManager modeManager;
+     
 
 
 // Forward declarations of functions included in this code module:
@@ -70,7 +64,6 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    ManualAdd(HWND, UINT, WPARAM, LPARAM);
 VOID                AddNewDevice();
 VOID                ShowContextMenu(POINT);
-VOID                UpdateStatus();
 VOID                TriggerTVSearch();
 VOID                SearchTVs();
 
@@ -83,8 +76,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     WCHAR rawPath[MAX_LOADSTRING];
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
-    controllerModeActive = false;
-    timeLastSeen = -3000;
 
     // Initialize global strings
     LoadString(hInstance, IDC_CONTROLLERMODEMONITOR, szWindowClass, MAX_LOADSTRING);
@@ -100,22 +91,16 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         return FALSE;
     }
 
-    int hRes;
-    hRes = InitializeWMI();
+    HRESULT hRes = modeManager.Init(WriteXmlSettings);
 
     if (FAILED(hRes))
     {
         exit(-1);
     }
 
-    audioDeviceManager = new AudioDeviceManager();
-    audioDeviceManager->Refresh();
-
     ReadXmlSettings();
     TriggerTVSearch();
     SetTimer(hWnd, IDT_UPDATETIMER, 100, nullptr);
-
-    
 
     MSG msg;
 
@@ -242,6 +227,7 @@ VOID ReadXmlSettings() {
 
     pugi::xml_node devicesNode = configDocument.child("MonitoredControllers");
     for (pugi::xml_node controllerNode : devicesNode.children()) {
+
         monitoredDeviceList.insert(pugi::as_wide(controllerNode.child_value()));
     }
 
@@ -251,10 +237,10 @@ VOID ReadXmlSettings() {
         std::string initInfo = tvNode.child("TVInitializeInfo").child_value();
 
         if (tvType == "Roku") {
-            currentTV = new RokuTV(initInfo);
+            modeManager.currentTV = std::make_shared<RokuTV>(initInfo);
         }
-        tvList.push_back(currentTV);
-        currentHDMI = std::stoi(tvNode.child("HDMIPort").child_value());
+        tvList.push_back(modeManager.currentTV);
+        modeManager.currentHDMI = std::stoi(tvNode.child("HDMIPort").child_value());
     }
 
     pugi::xml_node audioNode = configDocument.child("AudioInfo");
@@ -265,20 +251,20 @@ VOID ReadXmlSettings() {
         pugi::xml_node audioStoredDefaultDeviceNode = audioNode.child("ControllerModeSavedDefaultAudioDevice");
         std::wstring storedDefaultDeviceName = pugi::as_wide(audioStoredDefaultDeviceNode.child_value());
 
-        for (UINT j = 0; j < audioDeviceManager->DeviceCount(); j++) {
-            std::wstring foundDeviceName = audioDeviceManager->GetName(j);
+        for (UINT j = 0; j < modeManager.audioDeviceManager.DeviceCount(); j++) {
+            std::wstring foundDeviceName = modeManager.audioDeviceManager.GetName(j);
             if (foundDeviceName == controllerModeDeviceName) {
-                controllerModeAudioDevice = j;
+                modeManager.controllerModeAudioDevice = j;
             }
 
             if (foundDeviceName == storedDefaultDeviceName) {
-                saveAudioDefaultDevice = j;
+                modeManager.saveAudioDefaultDevice = j;
             }
         }
-        if (controllerModeAudioDevice == -1) {
+        if (modeManager.controllerModeAudioDevice == -1) {
             SendMessage(hWnd, WM_COMMAND, CC_AUDIO_DEVICE_NOT_FOUND, 0);
         }
-        if (saveAudioDefaultDevice != -1) {
+        if (modeManager.saveAudioDefaultDevice != -1) {
             SendMessage(hWnd, WM_COMMAND, CC_AUDIO_DEFAULT_NOT_RESTORED, 0);
         }
     }
@@ -308,27 +294,27 @@ VOID WriteXmlSettings() {
         controllerNode.append_child(pugi::node_pcdata).set_value(pugi::as_utf8(deviceName));
     }
 
-    if (currentTV != nullptr) {
+    if (modeManager.currentTV != nullptr) {
         pugi::xml_node tvNode = configDocument.append_child("TVInfo");
 
         std::string deviceType;
 
-        if (dynamic_cast<RokuTV*>(currentTV)) {
+        if (dynamic_pointer_cast<RokuTV>(modeManager.currentTV)) {
             deviceType = "Roku";
         }
         tvNode.append_child("TVType").append_child(pugi::node_pcdata).set_value(deviceType);
-        tvNode.append_child("TVInitializeInfo").append_child(pugi::node_pcdata).set_value(currentTV->Serialize());
-        tvNode.append_child("HDMIPort").append_child(pugi::node_pcdata).set_value(std::to_string(currentHDMI));
+        tvNode.append_child("TVInitializeInfo").append_child(pugi::node_pcdata).set_value(modeManager.currentTV->Serialize());
+        tvNode.append_child("HDMIPort").append_child(pugi::node_pcdata).set_value(std::to_string(modeManager.currentHDMI));
     }
 
-    if (controllerModeAudioDevice != -1) {
+    if (modeManager.controllerModeAudioDevice != -1) {
         pugi::xml_node audioNode = configDocument.append_child("AudioInfo");
-        std::wstring audioDeviceName = audioDeviceManager->GetName(controllerModeAudioDevice);
+        std::wstring audioDeviceName = modeManager.audioDeviceManager.GetName(modeManager.controllerModeAudioDevice);
 
         audioNode.append_child("ControllerModeAudioDevice").append_child(pugi::node_pcdata).set_value(pugi::as_utf8(audioDeviceName));
 
-        if (saveAudioDefaultDevice != -1) {
-            audioDeviceName = audioDeviceManager->GetName(controllerModeAudioDevice);
+        if (modeManager.saveAudioDefaultDevice != -1) {
+            audioDeviceName = modeManager.audioDeviceManager.GetName(modeManager.controllerModeAudioDevice);
             audioNode.append_child("ControllerModeSavedDefaultAudioDevice").append_child(pugi::node_pcdata).set_value(pugi::as_utf8(audioDeviceName));
         }
     }
@@ -487,63 +473,6 @@ VOID RemoveDevice(UINT deviceIndex) {
     }
 }
 
-//
-//   FUNCTION: UpdateStatus()
-//
-//   PURPOSE: Check the state of controller to activate/deactivate controller mode.
-//
-//   COMMENTS:
-//
-//        In this function, check if any of the monitored devices are connected. If
-//        a device is found and controller mode is not activated, it is activated.
-//        If controller mode is active and it has been more than 3 seconds since
-//        a controller was detected, controller mode is deactivated.
-//
-VOID UpdateStatus() {
-    audioDeviceManager->Refresh();
-    BOOL isConnected = IsDeviceConnected();
-    WCHAR commandText[MAX_LOADSTRING] = L"";
-
-    if (!isConnected) {
-        time_t currentTime = clock();
-        isConnected = (currentTime - timeLastSeen) < 3000;
-    }
-    else {
-        timeLastSeen = clock();
-    }
-    
-    if (controllerModeActive && !isConnected) {
-        // Deactivate contoller mode.
-        controllerModeActive = false;
-        LoadString(hInst, IDS_CMD_BIG_PICTURE_DEACTIVATE, commandText, MAX_LOADSTRING);
-
-        if (saveAudioDefaultDevice != -1) {
-            audioDeviceManager->SetDefault(saveAudioDefaultDevice);
-            saveAudioDefaultDevice = -1;
-            WriteXmlSettings();
-        }
-    }
-    else if (!controllerModeActive && isConnected) {
-        // Activate Controller Mode.
-        controllerModeActive = true;
-
-        if (currentTV != nullptr) {
-            currentTV->SetInput(currentHDMI);
-        }
-
-        if (controllerModeAudioDevice != -1) {
-            saveAudioDefaultDevice = audioDeviceManager->DefaultIndex();
-            audioDeviceManager->SetDefault(controllerModeAudioDevice);
-            WriteXmlSettings();
-        }
-
-        LoadString(hInst, IDS_CMD_BIG_PICTURE_ACTIVATE, commandText, MAX_LOADSTRING);
-    }
-
-    if (commandText[0] != 0) {
-        ShellExecute(0, L"open", commandText, nullptr, nullptr, SW_SHOWNORMAL);
-    }
-}
 
 //
 //   FUNCTION: TriggerTVSearch()
@@ -582,22 +511,17 @@ VOID TriggerTVSearch() {
 //        a warning is sent to the main message loop.
 //
 VOID SearchTVs() {
-    std::vector<TV*> tvsFound = RokuTV::SearchDevices();
+    std::vector<std::shared_ptr<TV>> tvsFound = RokuTV::SearchDevices();
 
-    for (auto&& child : tvList) {
-        if (child != currentTV) {
-            delete child;
-        }
-    }
     tvList = tvsFound;
-    if (currentTV != nullptr) {
+    if (modeManager.currentTV != nullptr) {
         bool matchFound = false;
-        for (TV* tv : tvList) {
-            matchFound |= tv->Equals(currentTV);
+        for (std::shared_ptr<TV> tv : tvList) {
+            matchFound |= tv->Equals(modeManager.currentTV);
         }
         if (!matchFound) {
             SendMessage(hWnd, WM_COMMAND, CC_DEVICE_NOT_FOUND, 0);
-            tvList.push_back(currentTV);
+            tvList.push_back(modeManager.currentTV);
         }
     }
     tvSearchRunning = false;
@@ -616,7 +540,7 @@ VOID SearchTVs() {
 //        is saved.
 //
 VOID SetTV(UINT index) {
-    currentTV = tvList[index];
+    modeManager.currentTV = tvList[index];
     WriteXmlSettings();
 }
 
@@ -633,7 +557,7 @@ VOID ShowManualTVWindow() {
 }
 
 VOID SetAudioDevice(int index) {
-    controllerModeAudioDevice = index;
+    modeManager.controllerModeAudioDevice = index;
     WriteXmlSettings();
 }
 
@@ -691,7 +615,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
             case CC_TV_ID: {
                 UINT tvNumber = (wmId & ~CC_TV_ID) >> 8;
-                currentHDMI = wmId & ~CC_TV_ID & 0xFF;
+                modeManager.currentHDMI = wmId & ~CC_TV_ID & 0xFF;
                 SetTV(tvNumber);
                 break;
             }
@@ -731,7 +655,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     ShowManualTVWindow();
                     break;
                 case ID_TV_CLEAR:
-                    currentTV = NULL;
+                    modeManager.currentTV = NULL;
                     WriteXmlSettings();
                     break;
                 case ID_FILE_RUNATLOGIN:
@@ -763,7 +687,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         PostQuitMessage(0);
         break;
     case WM_TIMER:
-        UpdateStatus();
+        modeManager.UpdateStatus();
         break;
     case WMAPP_NOTIFYCALLBACK:
         switch (LOWORD(lParam))
@@ -772,11 +696,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 break;
 
             case NIN_BALLOONUSERCLICK:
-                if (!controllerModeActive && saveAudioDefaultDevice != -1) {
-                    audioDeviceManager->SetDefault(saveAudioDefaultDevice);
-                    saveAudioDefaultDevice = -1;
-                    WriteXmlSettings();
-                }
+                modeManager.RestoreAudioDevice();
                 break;
 
             case NIN_SELECT:
@@ -844,15 +764,15 @@ void ShowContextMenu(POINT pt)
 
             HMENU hTVMenu = GetSubMenu(hMainMenu, 1);
             i = 0;
-            for (TV* tv : tvList) {
+            for (std::shared_ptr<TV> tv : tvList) {
                 int newItemPos = GetMenuItemCount(hTVMenu);
                 std::wstring deviceName = tv->GetName();
                 MENUITEMINFOW deviceItem = {};
-                bool controllerMatch = currentTV != nullptr && currentTV->Equals(tv);
+                bool controllerMatch = tv->Equals(modeManager.currentTV);
                 deviceItem.cbSize = sizeof(deviceItem);
                 deviceItem.fMask = MIIM_STRING | MIIM_ID | MIIM_STATE | MIIM_SUBMENU;
                 deviceItem.fState = controllerMatch ? MFS_CHECKED : MFS_UNCHECKED;
-                deviceItem.wID = CC_TV_ID | (i << 8) | currentHDMI;
+                deviceItem.wID = CC_TV_ID | (i << 8) | modeManager.currentHDMI;
                 deviceItem.dwTypeData = const_cast<LPWSTR>(deviceName.c_str());
                 
                 
@@ -864,7 +784,7 @@ void ShowContextMenu(POINT pt)
                     
                     hdmiItem.cbSize = sizeof(deviceItem);
                     hdmiItem.fMask = MIIM_STRING | MIIM_ID | MIIM_STATE;
-                    hdmiItem.fState = controllerMatch && currentHDMI == j ? MFS_CHECKED : MFS_UNCHECKED;
+                    hdmiItem.fState = controllerMatch && modeManager.currentHDMI == j ? MFS_CHECKED : MFS_UNCHECKED;
                     hdmiItem.wID = CC_TV_ID | (i << 8) | j;
                     std::wstring portName = (L"HDMI" + std::to_wstring(j + 1));
                     hdmiItem.dwTypeData = const_cast<LPWSTR>(portName.c_str());
@@ -879,11 +799,11 @@ void ShowContextMenu(POINT pt)
             }
 
             HMENU hAudioMenu = GetSubMenu(hMainMenu, 2);
-            for (UINT i = 0; i < audioDeviceManager->DeviceCount(); i++) {
+            for (UINT i = 0; i < modeManager.audioDeviceManager.DeviceCount(); i++) {
                 int newItemPos = GetMenuItemCount(hAudioMenu);
-                std::wstring endpointName = audioDeviceManager->GetName(i);
+                std::wstring endpointName = modeManager.audioDeviceManager.GetName(i);
 
-                if (audioDeviceManager->IsDefault(i)) {
+                if (modeManager.audioDeviceManager.IsDefault(i)) {
                     endpointName += L" (default)";
                 }
 
@@ -891,8 +811,8 @@ void ShowContextMenu(POINT pt)
                 //bool controllerMatch = currentController != nullptr && currentController->Equals(tv);
                 audioEndpointItem.cbSize = sizeof(MENUITEMINFOW);
                 audioEndpointItem.fMask = MIIM_STRING | MIIM_ID | MIIM_STATE;
-                audioEndpointItem.fState = (i == controllerModeAudioDevice ? MFS_CHECKED : MFS_UNCHECKED) \
-                                                | (controllerModeActive ? MFS_DISABLED : MFS_ENABLED) ;
+                audioEndpointItem.fState = (i == modeManager.controllerModeAudioDevice ? MFS_CHECKED : MFS_UNCHECKED) \
+                                                | (modeManager.controllerModeActive ? MFS_DISABLED : MFS_ENABLED) ;
                 audioEndpointItem.wID = CC_AUDIO_ID | i;
                 audioEndpointItem.dwTypeData = const_cast<LPWSTR>(endpointName.c_str());
 
@@ -965,10 +885,11 @@ INT_PTR CALLBACK ManualAdd(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
             std::string newIPAddress(inputText);
 
             if (RokuTV::Validate(newIPAddress)) {
-                currentTV = new RokuTV(newIPAddress);
+                modeManager.currentTV = std::make_shared<RokuTV>(newIPAddress);
                 
-                if (!std::any_of(tvList.begin(), tvList.end(), [](TV* t) { return t->Equals(currentTV); })) {
-                    tvList.push_back(currentTV);
+                // Verify the TV entered is not on the list before adding it.
+                if (!std::any_of(tvList.begin(), tvList.end(), [](std::shared_ptr<TV> t) { return t->Equals(modeManager.currentTV); })) {
+                    tvList.push_back(modeManager.currentTV);
                 }
                 WriteXmlSettings();
             }

@@ -8,12 +8,12 @@
 class RokuTV : public TV {
 public:
 	RokuTV(std::string);
-	static std::vector<TV*> SearchDevices();
+	static std::vector<std::shared_ptr<TV>> SearchDevices();
 	void SetInput(int HDMINumber);
 	std::wstring GetName();
 	std::string Serialize();
 	static bool Validate(std::string&);
-	bool Equals(TV*);
+	bool Equals(std::shared_ptr<TV>);
 	int HDMICount();
 private:
 	std::string ipAddress;

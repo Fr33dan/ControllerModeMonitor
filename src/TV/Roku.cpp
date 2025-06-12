@@ -110,8 +110,8 @@ int RokuTV::HDMICount() {
     return 4;
 }
 
-bool RokuTV::Equals(TV* other){
-    RokuTV* o = dynamic_cast<RokuTV*>(other);
+bool RokuTV::Equals(std::shared_ptr<TV> other){
+    std::shared_ptr<RokuTV> o = dynamic_pointer_cast<RokuTV>(other);
     if (o) {
         return (this->ipAddress == o->ipAddress);
     }
@@ -163,8 +163,8 @@ bool RokuTV::Validate(std::string &s) {
     return true;
 }
 
-std::vector<TV*> RokuTV::SearchDevices() {
-    std::vector<TV*> returnVal;
+std::vector<std::shared_ptr<TV>> RokuTV::SearchDevices() {
+    std::vector<std::shared_ptr<TV>> returnVal;
     boost::asio::io_context io_context;
     udp::resolver resolver(io_context);
     udp::endpoint sender_endpoint = *resolver.resolve(udp::v4(), SSDP_ADDR, SSDP_PORT).begin();;
@@ -193,7 +193,7 @@ std::vector<TV*> RokuTV::SearchDevices() {
                 OutputDebugStringA("Found Roku Device ");
                 OutputDebugStringA(matches[1].str().c_str());
                 OutputDebugStringA("\r\n");
-                returnVal.push_back(new RokuTV(matches[1].str()));
+                returnVal.push_back(std::make_shared<RokuTV>(matches[1].str()));
             }
         }
         catch (boost::system::system_error e) {

@@ -29,6 +29,7 @@ HRESULT ModeManager::Init(VOID(*writeSettingsCallback)()) {
     }
     audioDeviceManager.Refresh();
     this->WriteSettingsCallback = writeSettingsCallback;
+    return hRes;
 }
 
 //

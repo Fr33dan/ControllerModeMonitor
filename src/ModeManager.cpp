@@ -7,7 +7,7 @@
 #include "SteamStatus.h"
 
 //
-//   FUNCTION: UpdateStatus()
+//   FUNCTION: Init()
 //
 //   PURPOSE: Initialize the mode manager. 
 //
@@ -42,7 +42,8 @@ HRESULT ModeManager::Init(VOID(*writeSettingsCallback)()) {
 //        In this function, check if any of the monitored devices are connected. If
 //        a device is found and controller mode is not activated, it is activated.
 //        If controller mode is active and it has been more than 3 seconds since
-//        a controller was detected, controller mode is deactivated.
+//        a controller was detected, controller mode is deactivated. Settings may be
+//        saved if controller mode is activated to store previous default audio device.
 //
 VOID ModeManager::UpdateStatus() {
     audioDeviceManager.Refresh();
@@ -87,6 +88,15 @@ VOID ModeManager::UpdateStatus() {
     }
 }
 
+//
+//   FUNCTION: RestoreAudioDevice()
+//
+//   PURPOSE: Restore the default audio device after premature exit.
+// 
+//   COMMENTS:
+//        The configuration will be saved to clear the saved default
+//        audio device.
+//
 VOID ModeManager::RestoreAudioDevice() {
     if (!controllerModeActive && savedAudioDefaultDevice != -1) {
         audioDeviceManager.SetDefault(savedAudioDefaultDevice);

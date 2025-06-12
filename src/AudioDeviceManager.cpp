@@ -11,14 +11,6 @@ HRESULT RegisterDevice(LPCWSTR, ERole);
 const CLSID CLSID_MMDeviceEnumerator = __uuidof(MMDeviceEnumerator);
 const IID IID_IMMDeviceEnumerator = __uuidof(IMMDeviceEnumerator);
 
-AudioDeviceManager::AudioDeviceManager() {
-	HRESULT hr = S_OK;
-	hr = CoCreateInstance(
-		CLSID_MMDeviceEnumerator, NULL,
-		CLSCTX_ALL, IID_IMMDeviceEnumerator,
-		(void**)&pEnumerator);
-}
-
 AudioDeviceManager::~AudioDeviceManager() {
 	if (this->pEnumerator != NULL) {
 		this->pEnumerator->Release();
@@ -26,6 +18,15 @@ AudioDeviceManager::~AudioDeviceManager() {
 	if (this->audioDevices != NULL) {
 		this->audioDevices->Release();
 	}
+}
+
+HRESULT AudioDeviceManager::Init() {
+	HRESULT hRes = S_OK;
+	hRes = CoCreateInstance(
+		CLSID_MMDeviceEnumerator, NULL,
+		CLSCTX_ALL, IID_IMMDeviceEnumerator,
+		(void**)&pEnumerator);
+	return hRes;
 }
 
 std::wstring AudioDeviceManager::GetDefaultID() {

@@ -5,6 +5,7 @@
 
 class AudioDeviceManager {
 public:
+	HRESULT Init();
 	VOID SetDefault(UINT);
 	std::wstring GetDefaultName();
 	std::wstring GetDefaultID();
@@ -14,7 +15,7 @@ public:
 	UINT DefaultIndex();
 	UINT DeviceCount();
 	VOID Refresh();
-	AudioDeviceManager();
+	AudioDeviceManager() = default;
 	~AudioDeviceManager();
 private:
 	std::wstring GetStringProp(UINT, PROPERTYKEY);

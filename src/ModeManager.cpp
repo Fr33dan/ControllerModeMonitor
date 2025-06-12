@@ -6,6 +6,15 @@
 #include "ControllerMonitor.h"
 #include "../resource.h"
 
+//
+//   FUNCTION: UpdateStatus()
+//
+//   PURPOSE: Initialize the mode manager. 
+//
+//   COMMENTS:
+//
+//        Initialize the WMI connection used to monitor devices and audio device manager.
+//
 HRESULT ModeManager::Init(VOID(*writeSettingsCallback)()) {
     HRESULT hRes;
     hRes = InitializeWMI();
@@ -13,8 +22,13 @@ HRESULT ModeManager::Init(VOID(*writeSettingsCallback)()) {
     {
         return hRes;
     }
-    this->WriteSettingsCallback = writeSettingsCallback;
+    hRes = audioDeviceManager.Init();
+    if (FAILED(hRes))
+    {
+        return hRes;
+    }
     audioDeviceManager.Refresh();
+    this->WriteSettingsCallback = writeSettingsCallback;
 }
 
 //
